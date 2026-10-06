@@ -1,0 +1,2231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MDCA 1421: Medical Office Scheduling & Patient Flow Challenge</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tone.js for professional UI audio feedback -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            medPrimary: '#0f766e',     // Teal 700
+            medSecondary: '#0284c7',   // Sky 600
+            medAccent: '#0d9488',      // Teal 600
+            medWarning: '#d97706',     // Amber 600
+            medCritical: '#dc2626',    // Red 600
+            medSuccess: '#16a34a',     // Green 600
+            clinicalBg: '#f8fafc',     // Slate 50
+            clinicalCard: '#ffffff',
+            navyDark: '#0f172a'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbars and pulse animations */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    
+    .badge-urgent {
+      animation: pulseAlert 2s infinite;
+    }
+    @keyframes pulseAlert {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.85; transform: scale(1.02); }
+    }
+    .draggable-card {
+      touch-action: none;
+      user-select: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col font-sans">
+
+  <header class="bg-navyDark text-white sticky top-0 z-50 shadow-md border-b border-teal-600">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="h-10 w-10 rounded-lg bg-teal-500/20 border border-teal-400 flex items-center justify-center text-teal-300 font-bold text-xl">
+          <svg class="w-6 h-6 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+        </div>
+        <div>
+          <span class="text-xs uppercase tracking-wider text-teal-400 font-semibold">MDCA 1421 Administrative Procedures</span>
+          <h1 class="text-lg sm:text-xl font-bold leading-tight text-white">Medical Office Scheduling & Patient Flow Challenge</h1>
+        </div>
+      </div>
+
+      <!-- Quick Metrics HUD -->
+      <div class="flex items-center gap-3 sm:gap-6 bg-slate-800/80 px-4 py-1.5 rounded-xl border border-slate-700 text-xs sm:text-sm">
+        <div class="text-center">
+          <div class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Overall Score</div>
+          <div id="hud-total-score" class="text-emerald-400 font-extrabold text-base">0 / 600</div>
+        </div>
+        <div class="h-6 w-px bg-slate-700"></div>
+        <div class="text-center">
+          <div class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Efficiency</div>
+          <div id="hud-efficiency" class="text-sky-400 font-extrabold text-base">92%</div>
+        </div>
+        <div class="h-6 w-px bg-slate-700"></div>
+        <div class="text-center">
+          <div class="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Patient Sat.</div>
+          <div id="hud-satisfaction" class="text-amber-400 font-extrabold text-base">96%</div>
+        </div>
+        <div class="h-6 w-px bg-slate-700"></div>
+        <button id="sound-toggle-btn" onclick="toggleAudio()" class="p-2 rounded bg-slate-700 text-slate-300 hover:text-white hover:bg-slate-600 transition" title="Toggle Simulation Audio Effects">
+          <svg id="sound-icon-on" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="bg-slate-900 border-t border-slate-800 text-xs sm:text-sm overflow-x-auto whitespace-nowrap">
+      <div class="max-w-7xl mx-auto px-4 flex space-x-1 sm:space-x-2 py-1.5" id="nav-tabs-container">
+        <button onclick="switchTab('sec1')" class="nav-tab active-tab px-3 py-1.5 rounded-md font-medium text-teal-300 bg-teal-950/80 border border-teal-500/40">1. Schedule Builder</button>
+        <button onclick="switchTab('sec2')" class="nav-tab px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800">2. Conflicts (10)</button>
+        <button onclick="switchTab('sec3')" class="nav-tab px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800">3. Prioritization</button>
+        <button onclick="switchTab('sec4')" class="nav-tab px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800">4. No-Show Strategy</button>
+        <button onclick="switchTab('sec5')" class="nav-tab px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800">5. Referrals</button>
+        <button onclick="switchTab('sec6')" class="nav-tab px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800">6. Flow Optimization</button>
+        <button onclick="switchTab('capstone')" class="nav-tab px-3 py-1.5 rounded-md font-semibold text-amber-300 bg-amber-950/40 border border-amber-600/40 hover:bg-amber-900/50">★ Virtual Clinic Day</button>
+        <button onclick="switchTab('report')" class="nav-tab px-3 py-1.5 rounded-md font-medium text-emerald-400 hover:text-emerald-300 hover:bg-slate-800">Final Transcript</button>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Notification Banner / Toast Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none max-w-sm"></div>
+
+  <!-- Main Content Area -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- Notice Card / Role Introduction -->
+    <div class="bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 text-white rounded-2xl p-5 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-teal-700/50">
+      <div class="flex items-center gap-4">
+        <div class="h-12 w-12 rounded-xl bg-teal-500/20 border border-teal-400 flex items-center justify-center shrink-0">
+          <svg class="w-7 h-7 text-teal-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+          </svg>
+        </div>
+        <div>
+          <div class="text-xs uppercase font-bold tracking-widest text-teal-300">Student Role Profile</div>
+          <h2 class="text-lg font-bold">Certified Medical Assistant (CMA) — Lead Administrative Coordinator</h2>
+          <p class="text-xs text-teal-100 max-w-2xl">Provider: <span class="font-semibold text-white">Dr. Robert Smith, MD (Internal Medicine)</span> &bull; Practice Model: Mixed Wave & Modified Cluster Booking.</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 self-end md:self-auto">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40">
+          <span class="w-2 h-2 mr-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live Session
+        </span>
+      </div>
+    </div>
+
+    <section id="section-sec1" class="tab-section block space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-200 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-md bg-teal-100 text-teal-800 text-xs font-bold uppercase tracking-wider">Section 1</span>
+              <h2 class="text-xl font-bold text-slate-900">Build Dr. Smith’s Provider Schedule</h2>
+            </div>
+            <p class="text-sm text-slate-600 mt-1">
+              Office Hours: <strong>8:00 AM – 5:00 PM</strong> | Mandatory Lunch Break: <strong>12:00 PM – 1:00 PM</strong> | Total Available Clinical Hours: <strong>8 Hours (480 mins)</strong>.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <button onclick="autoPopulateSchedule()" class="px-3 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-300 transition">
+              Load Recommended Template
+            </button>
+            <button onclick="clearScheduleSlots()" class="px-3 py-2 text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 transition">
+              Reset Grid
+            </button>
+            <button onclick="evaluateSection1()" class="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg shadow-sm transition">
+              Submit & Audit Schedule
+            </button>
+          </div>
+        </div>
+
+        <!-- Appointment Inventory & Instruction -->
+        <div class="mt-5 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="md:col-span-1 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center justify-between">
+              <span>Appointment Queue</span>
+              <span id="queue-remaining-badge" class="px-2 py-0.5 bg-teal-600 text-white rounded text-[10px]">12 Remaining</span>
+            </h3>
+            <p class="text-xs text-slate-500 mb-3 leading-relaxed">
+              Click an appointment type from the pool below, then click any unoccupied schedule block to place it.
+            </p>
+
+            <div class="space-y-2" id="appointment-pool">
+              <!-- Dynamically populated or static selector items -->
+              <div onclick="selectApptType('NP')" id="btn-appt-NP" class="appt-selector cursor-pointer p-2.5 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 flex items-center justify-between text-xs transition">
+                <div>
+                  <div class="font-bold text-indigo-900">New Patient Visit</div>
+                  <div class="text-[11px] text-indigo-600">45 Minutes</div>
+                </div>
+                <span id="count-NP" class="font-bold px-2 py-0.5 bg-indigo-600 text-white rounded-full text-xs">2</span>
+              </div>
+
+              <div onclick="selectApptType('PE')" id="btn-appt-PE" class="appt-selector cursor-pointer p-2.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 flex items-center justify-between text-xs transition">
+                <div>
+                  <div class="font-bold text-purple-900">Complete Physical Exam</div>
+                  <div class="text-[11px] text-purple-600">60 Minutes</div>
+                </div>
+                <span id="count-PE" class="font-bold px-2 py-0.5 bg-purple-600 text-white rounded-full text-xs">1</span>
+              </div>
+
+              <div onclick="selectApptType('AWE')" id="btn-appt-AWE" class="appt-selector cursor-pointer p-2.5 rounded-lg border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 flex items-center justify-between text-xs transition">
+                <div>
+                  <div class="font-bold text-emerald-900">Annual Wellness Exam</div>
+                  <div class="text-[11px] text-emerald-600">30 Minutes</div>
+                </div>
+                <span id="count-AWE" class="font-bold px-2 py-0.5 bg-emerald-600 text-white rounded-full text-xs">3</span>
+              </div>
+
+              <div onclick="selectApptType('FU')" id="btn-appt-FU" class="appt-selector cursor-pointer p-2.5 rounded-lg border border-sky-200 bg-sky-50 hover:bg-sky-100 flex items-center justify-between text-xs transition">
+                <div>
+                  <div class="font-bold text-sky-900">Follow-Up Visit</div>
+                  <div class="text-[11px] text-sky-600">15 Minutes</div>
+                </div>
+                <span id="count-FU" class="font-bold px-2 py-0.5 bg-sky-600 text-white rounded-full text-xs">4</span>
+              </div>
+
+              <div onclick="selectApptType('SICK')" id="btn-appt-SICK" class="appt-selector cursor-pointer p-2.5 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 flex items-center justify-between text-xs transition">
+                <div>
+                  <div class="font-bold text-amber-900">Same-Day Sick Visit</div>
+                  <div class="text-[11px] text-amber-600">20 Minutes (Buffer)</div>
+                </div>
+                <span id="count-SICK" class="font-bold px-2 py-0.5 bg-amber-600 text-white rounded-full text-xs">2</span>
+              </div>
+            </div>
+
+            <!-- Active Selected Indicator -->
+            <div class="mt-4 p-2.5 bg-slate-200/70 rounded-lg text-center text-xs">
+              <span class="text-slate-500">Currently Selected:</span>
+              <div id="active-selected-label" class="font-bold text-teal-800 mt-0.5">None (Select from above)</div>
+            </div>
+
+            <!-- Inefficiency Alert Box -->
+            <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800">
+              <strong class="font-semibold block mb-1">Administrative Best Practice:</strong>
+              Reserve at least one same-day sick slot in late morning and one in mid-afternoon to prevent acute walk-in bottlenecks. Avoid clustering new patient visits back-to-back.
+            </div>
+          </div>
+
+          <!-- Schedule Grid (32 x 15-min intervals from 8:00 AM to 5:00 PM) -->
+          <div class="md:col-span-3">
+            <div class="bg-white rounded-xl border border-slate-300 overflow-hidden">
+              <div class="grid grid-cols-12 bg-slate-100 text-slate-700 text-xs font-bold py-2 px-3 border-b border-slate-300">
+                <div class="col-span-3">Time Window</div>
+                <div class="col-span-6">Scheduled Appointment / Patient Category</div>
+                <div class="col-span-3 text-right">Action / Slot Status</div>
+              </div>
+              <div id="schedule-slots-container" class="divide-y divide-slate-200 max-h-[520px] overflow-y-auto">
+                <!-- Dynamically populated via JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 1 Feedback Modal / Card -->
+        <div id="sec1-feedback" class="hidden mt-6 p-5 rounded-xl border bg-slate-50"></div>
+      </div>
+    </section>
+
+    <section id="section-sec2" class="tab-section hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-200 pb-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-md bg-sky-100 text-sky-800 text-xs font-bold uppercase tracking-wider">Section 2</span>
+              <h2 class="text-xl font-bold text-slate-900">Scheduling Conflicts & Triage Mastery</h2>
+            </div>
+            <p class="text-sm text-slate-600 mt-1">10 Interactive Decision Scenarios. Evaluate ethical, legal, and operational best practices.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-slate-500">Progress:</span>
+            <span id="conflict-progress-badge" class="px-3 py-1 bg-sky-100 text-sky-800 rounded-full font-bold text-xs">Scenario 1 of 10</span>
+          </div>
+        </div>
+
+        <!-- Conflict Scenario Active Card -->
+        <div class="mt-6" id="conflict-card-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <section id="section-sec3" class="tab-section hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="border-b border-slate-200 pb-4">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-md bg-purple-100 text-purple-800 text-xs font-bold uppercase tracking-wider">Section 3</span>
+            <h2 class="text-xl font-bold text-slate-900">Urgency Triage & Patient Prioritization</h2>
+          </div>
+          <p class="text-sm text-slate-600 mt-1">
+            Five patients are simultaneously contacting your front desk requesting an appointment. Arrange them in clinical order from <strong>Highest Priority (Immediate / Most Urgent)</strong> down to <strong>Lowest Priority (Routine / Non-Urgent)</strong>.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <!-- Patient Cards Pool to Rank -->
+          <div>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Patients Requiring Scheduling</h3>
+            <p class="text-xs text-slate-500 mb-3">Use the arrow buttons to position patients into your prioritized triage hierarchy (Rank 1 = Most Urgent).</p>
+            
+            <div id="prioritization-list" class="space-y-3">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Rationale & Submission Column -->
+          <div class="bg-slate-50 rounded-xl p-5 border border-slate-200 flex flex-col justify-between">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Clinical & Administrative Rationale</h3>
+              <p class="text-xs text-slate-500 mb-3">Explain why your top-priority patient requires immediate intervention over routine or subacute requests:</p>
+              
+              <textarea id="prioritization-rationale" rows="6" placeholder="Provide your justification citing patient symptoms, safety protocols (e.g. EMS activation vs same-day slot), and clinic liability..." class="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"></textarea>
+
+              <div class="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg text-[11px] text-purple-800">
+                <strong>Medical Assistant Standard of Care:</strong> Never leave a patient experiencing unstable vital symptoms (e.g., chest pain, difficulty breathing, acute neurological deficits) in a standard waiting queue. Protocol mandates immediate transfer to provider or 911 activation.
+              </div>
+            </div>
+
+            <div class="mt-5 pt-4 border-t border-slate-200 flex justify-end gap-3">
+              <button onclick="resetPrioritization()" class="px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100">Reset Order</button>
+              <button onclick="evaluatePrioritization()" class="px-4 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg shadow-sm">Submit Prioritization & Audit</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prioritization Feedback Container -->
+        <div id="sec3-feedback" class="hidden mt-6 p-5 rounded-xl border bg-slate-50"></div>
+      </div>
+    </section>
+
+    <section id="section-sec4" class="tab-section hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="border-b border-slate-200 pb-4">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-bold uppercase tracking-wider">Section 4</span>
+            <h2 class="text-xl font-bold text-slate-900">Strategic Practice Management: Reducing No-Shows</h2>
+          </div>
+          <p class="text-sm text-slate-600 mt-1">
+            <strong>Practice Baseline:</strong> Dr. Smith’s internal medicine clinic currently suffers from a devastating <strong>25% No-Show Rate</strong> (approx. 4 lost patient visits per day, totaling over $12,000 in monthly lost provider revenue and compromised chronic disease continuity).
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          <!-- Selection Checklist -->
+          <div class="lg:col-span-2 space-y-4">
+            <h3 class="text-sm font-bold text-slate-800">Select Interventions for Your Quality Improvement (QI) Strategy</h3>
+            <p class="text-xs text-slate-500">Choose the optimal multi-layered combination of technological, administrative, and clinical policies. Evaluate each policy's impact on patient rapport vs efficiency.</p>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="noshow-options-grid">
+              <!-- Dynamically populated or rendered -->
+            </div>
+          </div>
+
+          <!-- Strategy Simulation Dashboard -->
+          <div class="bg-slate-900 text-white rounded-xl p-5 flex flex-col justify-between border border-slate-800">
+            <div>
+              <div class="text-xs uppercase font-bold text-amber-400 tracking-wider">Predictive Outcome Engine</div>
+              <h4 class="text-base font-bold mt-1">Practice Impact Model</h4>
+
+              <div class="mt-6 space-y-4">
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Projected No-Show Rate:</span>
+                    <span id="sim-noshow-rate" class="font-extrabold text-amber-400 text-sm">25.0%</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+                    <div id="sim-noshow-bar" class="bg-amber-500 h-2.5 rounded-full transition-all duration-500" style="width: 100%"></div>
+                  </div>
+                  <div class="flex justify-between text-[10px] text-slate-500 mt-1">
+                    <span>Target: &lt; 8.0%</span>
+                    <span>Industry Avg: 12-15%</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Monthly Revenue Recovered:</span>
+                    <span id="sim-revenue-val" class="font-extrabold text-emerald-400 text-sm">$0 / mo</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div id="sim-revenue-bar" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex justify-between text-xs mb-1">
+                    <span class="text-slate-400">Patient Satisfaction & Compliance:</span>
+                    <span id="sim-satisfaction-val" class="font-bold text-sky-400 text-xs">Standard (70%)</span>
+                  </div>
+                  <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+                    <div id="sim-satisfaction-bar" class="bg-sky-500 h-2 rounded-full transition-all duration-500" style="width: 70%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6 pt-4 border-t border-slate-800">
+              <button onclick="commitNoShowStrategy()" class="w-full py-2.5 px-4 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-lg text-xs shadow-md transition">
+                Finalize & Implement Plan
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategy Detailed Evaluation Card -->
+        <div id="sec4-feedback" class="hidden mt-6 p-5 rounded-xl border bg-slate-50"></div>
+      </div>
+    </section>
+
+    <section id="section-sec5" class="tab-section hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="border-b border-slate-200 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-xs font-bold uppercase tracking-wider">Section 5</span>
+              <h2 class="text-xl font-bold text-slate-900">Branching Referral Coordination</h2>
+            </div>
+            <p class="text-sm text-slate-600 mt-1">
+              Select documents, verify insurance pre-authorization rules, schedule consultations, and prevent referral leakage.
+            </p>
+          </div>
+          <div class="flex space-x-1" id="referral-case-selector">
+            <button onclick="loadReferralCase(0)" id="ref-tab-0" class="px-3 py-1.5 rounded-md text-xs font-bold bg-teal-600 text-white">Case 1: Cardiology</button>
+            <button onclick="loadReferralCase(1)" id="ref-tab-1" class="px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200">Case 2: Physical Therapy</button>
+            <button onclick="loadReferralCase(2)" id="ref-tab-2" class="px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200">Case 3: MRI Imaging</button>
+          </div>
+        </div>
+
+        <!-- Active Referral Interactive Step Engine -->
+        <div id="referral-case-body" class="mt-6">
+          <!-- Dynamically populated via JS -->
+        </div>
+      </div>
+    </section>
+
+    <section id="section-sec6" class="tab-section hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="border-b border-slate-200 pb-4">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded-md bg-rose-100 text-rose-800 text-xs font-bold uppercase tracking-wider">Section 6</span>
+            <h2 class="text-xl font-bold text-slate-900">Patient Flow & Bottleneck Elimination (Lean Healthcare)</h2>
+          </div>
+          <p class="text-sm text-slate-600 mt-1">
+            Analyze the traditional broken linear flow (Check-In &rarr; Waiting Room &rarr; Vitals &rarr; Provider &rarr; Checkout). Redesign the workflow by dragging lean innovations into the pipeline to eliminate delays.
+          </p>
+        </div>
+
+        <!-- Bottleneck Diagnostic Visualizer -->
+        <div class="mt-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Diagnostic Clinic Bottlenecks Identified Today:</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div class="bg-white p-3 rounded-lg border-l-4 border-rose-500 shadow-xs">
+              <strong class="text-rose-700 block">Bottleneck #1: Paperwork Delays</strong>
+              <span class="text-slate-600 text-[11px]">Patients spending 14 mins filling paper clipboards at front desk window.</span>
+            </div>
+            <div class="bg-white p-3 rounded-lg border-l-4 border-amber-500 shadow-xs">
+              <strong class="text-amber-700 block">Bottleneck #2: Insurance Verification</strong>
+              <span class="text-slate-600 text-[11px]">Surprise inactive HMO policies discovered after patient has already checked in.</span>
+            </div>
+            <div class="bg-white p-3 rounded-lg border-l-4 border-purple-500 shadow-xs">
+              <strong class="text-purple-700 block">Bottleneck #3: Slow Room Turnover</strong>
+              <span class="text-slate-600 text-[11px]">Exam rooms sit dirty for 12 minutes between encounters while MAs are on phone.</span>
+            </div>
+            <div class="bg-white p-3 rounded-lg border-l-4 border-indigo-500 shadow-xs">
+              <strong class="text-indigo-700 block">Bottleneck #4: Provider Data Entry Lag</strong>
+              <span class="text-slate-600 text-[11px]">Dr. Smith typing medication reconciliation during the consultation instead of prior.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Workflow Canvas -->
+        <div class="mt-6">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-sm font-bold text-slate-800">Rearrange & Optimize the 6 Core Clinic Stages</h3>
+            <span class="text-xs text-slate-500">Click the move buttons to sequence the steps in optimal parallel flow.</span>
+          </div>
+
+          <div id="workflow-steps-container" class="space-y-2">
+            <!-- Dynamically populated with movable stages -->
+          </div>
+
+          <!-- Workflow Interventions Toggle Bank -->
+          <div class="mt-6 pt-5 border-t border-slate-200">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">Select Lean Operational Countermeasures:</h4>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3" id="lean-countermeasures">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-end gap-3">
+            <button onclick="resetWorkflowOrder()" class="px-3 py-2 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">Reset Default Flow</button>
+            <button onclick="auditPatientFlow()" class="px-5 py-2.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg shadow-sm">Simulate Optimized Flow</button>
+          </div>
+        </div>
+
+        <div id="sec6-feedback" class="hidden mt-6 p-5 rounded-xl border bg-slate-50"></div>
+      </div>
+    </section>
+
+    <section id="section-capstone" class="tab-section hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="border-b border-slate-200 pb-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-800 text-xs font-bold uppercase tracking-wider">Capstone</span>
+              <h2 class="text-xl font-bold text-slate-900">Virtual Clinic Day Live Simulation</h2>
+            </div>
+            <p class="text-sm text-slate-600 mt-1">
+              Step through a live clinic day with real-time arrivals, emergency add-ons, sudden cancellations, and phone requests.
+            </p>
+          </div>
+          <div class="flex items-center gap-4 bg-slate-900 text-white px-4 py-2 rounded-xl">
+            <div>
+              <div class="text-[10px] uppercase font-bold text-slate-400">Simulation Clock</div>
+              <div id="sim-clock" class="text-base font-extrabold text-amber-400">08:00 AM</div>
+            </div>
+            <div class="h-6 w-px bg-slate-700"></div>
+            <div>
+              <div class="text-[10px] uppercase font-bold text-slate-400">Events Completed</div>
+              <div id="capstone-event-count" class="text-base font-extrabold text-teal-400">0 / 6</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6" id="capstone-stage-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+    <section id="section-report" class="tab-section hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="border-b border-slate-200 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <span class="px-2.5 py-0.5 rounded-md bg-teal-100 text-teal-800 text-xs font-bold uppercase tracking-wider">Evaluation & Lab Credit</span>
+            <h2 class="text-xl font-bold text-slate-900">MDCA 1421 Competency Audit & Reflection Transcript</h2>
+            <p class="text-sm text-slate-600 mt-1">Complete your 4 reflective synthesis responses below to export your official course verification report.</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="printSimulationReport()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+              Print / Save PDF
+            </button>
+            <button onclick="copyReportClipboard()" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+              Copy Transcript
+            </button>
+          </div>
+        </div>
+
+        <!-- Grade Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <span class="text-xs text-slate-500 font-bold uppercase">Section 1: Schedule</span>
+            <div id="rep-s1-score" class="text-xl font-extrabold text-teal-700 mt-1">-- / 100</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <span class="text-xs text-slate-500 font-bold uppercase">Section 2: Conflicts</span>
+            <div id="rep-s2-score" class="text-xl font-extrabold text-sky-700 mt-1">-- / 100</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <span class="text-xs text-slate-500 font-bold uppercase">Section 3: Prioritization</span>
+            <div id="rep-s3-score" class="text-xl font-extrabold text-purple-700 mt-1">-- / 100</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <span class="text-xs text-slate-500 font-bold uppercase">Section 4: No-Show Plan</span>
+            <div id="rep-s4-score" class="text-xl font-extrabold text-amber-700 mt-1">-- / 100</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <span class="text-xs text-slate-500 font-bold uppercase">Section 5: Referrals</span>
+            <div id="rep-s5-score" class="text-xl font-extrabold text-emerald-700 mt-1">-- / 100</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <span class="text-xs text-slate-500 font-bold uppercase">Section 6: Flow Optimization</span>
+            <div id="rep-s6-score" class="text-xl font-extrabold text-indigo-700 mt-1">-- / 100</div>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+            <span class="text-xs text-slate-500 font-bold uppercase">Capstone Day</span>
+            <div id="rep-cap-score" class="text-xl font-extrabold text-rose-700 mt-1">-- / 100</div>
+          </div>
+          <div class="bg-teal-900 text-white p-4 rounded-xl text-center border border-teal-800">
+            <span class="text-xs text-teal-300 font-bold uppercase">Cumulative Grade</span>
+            <div id="rep-total-score" class="text-xl font-black text-emerald-300 mt-1">0%</div>
+          </div>
+        </div>
+
+        <!-- Reflection Form -->
+        <div class="mt-8 space-y-5">
+          <h3 class="text-base font-bold text-slate-900 border-b border-slate-200 pb-2">Synthesis Reflection Questions (Required for MDCA 1421 Lab Submission)</h3>
+          
+          <div class="space-y-1">
+            <label class="block text-xs font-bold text-slate-700">1. What scheduling decision was most difficult during the simulation and why?</label>
+            <textarea id="ref-q1" rows="3" class="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-teal-500" placeholder="Discuss trade-offs between urgent walk-ins, double-booking risks, and provider burnout..."></textarea>
+          </div>
+
+          <div class="space-y-1">
+            <label class="block text-xs font-bold text-slate-700">2. How did you balance urgent patient needs with maintaining provider availability and buffer time?</label>
+            <textarea id="ref-q2" rows="3" class="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-teal-500" placeholder="Explain how wave scheduling and strategic open catch-up slots prevent clinic chaos..."></textarea>
+          </div>
+
+          <div class="space-y-1">
+            <label class="block text-xs font-bold text-slate-700">3. In what specific ways does disciplined front-desk scheduling improve patient satisfaction and outcomes?</label>
+            <textarea id="ref-q3" rows="3" class="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-teal-500" placeholder="Describe the connection between wait times, reduced anxiety, trust in care team, and chronic care adherence..."></textarea>
+          </div>
+
+          <div class="space-y-1">
+            <label class="block text-xs font-bold text-slate-700">4. What specific workflow or communication protocol would you do differently in an ambulatory medical office?</label>
+            <textarea id="ref-q4" rows="3" class="w-full text-xs p-3 border border-slate-300 rounded-lg focus:ring-teal-500" placeholder="Reflect on digital pre-registration, firm late arrival guidelines, and empathy during triage..."></textarea>
+          </div>
+        </div>
+
+        <!-- Printable Document Output Container -->
+        <div id="printable-area" class="hidden mt-8 p-8 border-2 border-slate-800 bg-white rounded-xl text-slate-800 text-xs">
+          <!-- Populated when user generates or prints report -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    /* Global Application State */
+    const state = {
+      audioEnabled: true,
+      scores: {
+        sec1: 0,
+        sec2: 0,
+        sec3: 0,
+        sec4: 0,
+        sec5: 0,
+        sec6: 0,
+        capstone: 0
+      },
+      efficiencyRate: 92,
+      satisfactionRate: 96,
+      currentTab: 'sec1',
+
+      // Section 1 State
+      selectedApptCode: null,
+      inventory: {
+        NP: 2,   // 45m
+        PE: 1,   // 60m
+        AWE: 3,  // 30m
+        FU: 4,   // 15m
+        SICK: 2  // 20m (slots 15m default, fits in 1 or 2 blocks)
+      },
+      scheduleGrid: Array(32).fill(null), // 8:00 AM to 5:00 PM in 15-min intervals (12:00-1:00 PM blocked for lunch)
+
+      // Section 2 State (10 Conflicts)
+      conflictIndex: 0,
+      conflictUserAnswers: [],
+
+      // Section 3 State (Prioritization)
+      prioritizationOrder: [
+        { id: 'chest_pain', label: 'Patient with Acute Chest Pain radiating to jaw', urgency: 'Immediate Emergency', code: '1' },
+        { id: 'fever', label: 'Pediatric patient with 102.5°F fever for 3 days', urgency: 'Urgent Same-Day', code: '2' },
+        { id: 'hypertension', label: 'Hypertension Follow-Up with blood pressure reading 158/94', urgency: 'Priority Chronic', code: '3' },
+        { id: 'refill', label: 'Medication refill for maintenance thyroid hormone (Levothyroxine)', urgency: 'Routine Non-Urgent', code: '4' },
+        { id: 'wellness', label: 'Annual Wellness Exam (preventive checkup with no active complaints)', urgency: 'Elective Preventive', code: '5' }
+      ],
+
+      // Section 4 State (No-Show Interventions)
+      activeInterventions: new Set(),
+
+      // Section 5 State (Referrals)
+      currentReferralIndex: 0,
+      referralData: [
+        {
+          specialty: 'Cardiology Referral',
+          patient: 'Harold Jenkins, 62 yo Male',
+          diagnosis: 'Unstable Angina & Abnormal Resting ECG (ST depression in V4-V6)',
+          insurance: 'Medicare Advantage HMO (Requires Prior Authorization & Specialist Pre-Cert)',
+          requiredDocs: ['Signed Referral Order', 'Last 2 Clinical Encounter Notes', '12-Lead ECG Tracing', 'Current Medication List', 'Demographics & Insurance Card Copy'],
+          steps: [
+            { question: 'Step 1: Authorization Protocol', options: ['Schedule directly without insurer authorization to save time', 'Submit urgent electronic prior auth request to HMO with clinical ECG documentation', 'Advise patient to pay out of pocket'], correct: 1, rationale: 'HMO plans legally require prior-authorization. Booking without authorization leads to denial and patient billing disputes.' },
+            { question: 'Step 2: Urgency Classification', options: ['Routine (Schedule within 30-45 days)', 'Urgent Cardiology Consult (Schedule within 24-48 hours)', 'Elective (Whenever cardiologist has opening in 3 months)'], correct: 1, rationale: 'Abnormal ECG with angina requires urgent cardiology evaluation within 48 hours to avert acute myocardial infarction.' },
+            { question: 'Step 3: Referral Closing & Tracking', options: ['Close referral note immediately once fax is sent', 'Log in Referral Tracking Registry, follow up within 24 hours to confirm appointment booked, and request consult notes', 'Tell the patient to call the cardiologist themselves and leave file on desk'], correct: 1, rationale: 'Referral tracking is critical to prevent leakage and ensure consult notes return to the primary care provider.' }
+          ]
+        },
+        {
+          specialty: 'Physical Therapy',
+          patient: 'Elena Rodriguez, 44 yo Female',
+          diagnosis: 'Subacute Lumbar Strain (Post-injury 3 weeks)',
+          insurance: 'Blue Cross PPO (No referral authorization required; 20 visits/year cap)',
+          requiredDocs: ['PT Prescription / Diagnosis Code', 'Clinical Progress Note', 'Functional Assessment Baseline'],
+          steps: [
+            { question: 'Step 1: PPO Insurance Verification', options: ['Demand HMO referral form from primary physician', 'Verify active PPO coverage, co-pay ($25), and available benefit visit limits', 'Tell patient PPOs do not cover therapy'], correct: 1, rationale: 'PPO plans permit direct specialist access, but verifying annual visit allowances and copays prevents surprise patient bills.' },
+            { question: 'Step 2: Appointment Coordination', options: ['Schedule evaluation within 5-7 business days at network facility convenient to patient', 'Place patient on 6-month waitlist', 'Tell patient to perform unguided internet exercises'], correct: 0, rationale: 'Subacute musculoskeletal rehabilitation should commence within 1 week for optimal functional recovery.' },
+            { question: 'Step 3: Inter-professional Communication', options: ['Instruct physical therapist never to contact clinic', 'Request initial PT evaluation and 4-week Plan of Care (POC) for Dr. Smith’s review and signature', 'Discharge patient from internal medicine clinic'], correct: 1, rationale: 'Physician must review and sign PT plan of care every 30-60 days to satisfy clinical and billing compliance.' }
+          ]
+        },
+        {
+          specialty: 'Diagnostic MRI (Lumbar Spine)',
+          patient: 'Marcus Vance, 51 yo Male',
+          diagnosis: 'Persistent Lumbar Radiculopathy with motor weakness (Failed 6 weeks conservative therapy)',
+          insurance: 'Aetna Commercial Managed Care',
+          requiredDocs: ['Signed Imaging Requisition with ICD-10 & CPT', 'Documentation of failed conservative therapy (6 weeks NSAIDs/PT)', 'Clinical neurological exam notes'],
+          steps: [
+            { question: 'Step 1: Pre-Authorization Preparation', options: ['Submit MRI order with only a one-line request', 'Assemble chart notes proving 6+ weeks of documented conservative treatment failure and progressive neurological deficits', 'Instruct patient to walk into emergency room to get free MRI'], correct: 1, rationale: 'Commercial insurers automatically deny advanced spinal imaging without documented evidence of conservative trial failure.' },
+            { question: 'Step 2: Safety & Contraindication Screening', options: ['No questions needed before scheduling MRI', 'Complete mandatory MRI Safety Screening Sheet (Pacemaker, metal implants, claustrophobia, kidney function for contrast)', 'Ask patient to remove glasses only'], correct: 1, rationale: 'Ferromagnetic implants or cardiac pacemakers present fatal safety hazards in high magnetic field environments.' },
+            { question: 'Step 3: Scheduling & Patient Prep Instructions', options: ['Schedule at approved in-network imaging center and provide claustrophobia/fasting instructions', 'Send patient to out-of-network facility without warning', 'Book MRI during provider lunch hour'], correct: 0, rationale: 'Directing patients to in-network centers protects against balance billing, while pre-procedure instruction reduces scan cancellations.' }
+          ]
+        }
+      ],
+      referralUserChoices: [[], [], []],
+
+      // Section 6 State (Patient Flow)
+      workflowOrder: ['checkin', 'waiting', 'vitals', 'provider', 'checkout'],
+      selectedLeanTactics: new Set(),
+
+      // Capstone State
+      capstoneIndex: 0,
+      capstoneScore: 0
+    };
+
+    /* Audio Sound Effects using Tone.js Synthesizer */
+    let synth = null;
+    function initAudio() {
+      if (!synth && typeof Tone !== 'undefined') {
+        try {
+          synth = new Tone.PolySynth(Tone.Synth).toDestination();
+          synth.volume.value = -12;
+        } catch(e) {
+          console.log("Audio not supported or blocked", e);
+        }
+      }
+    }
+
+    function playTone(type) {
+      if (!state.audioEnabled) return;
+      initAudio();
+      if (!synth) return;
+      try {
+        if (Tone.context.state !== 'running') {
+          Tone.context.resume();
+        }
+        if (type === 'success') {
+          synth.triggerAttackRelease(["C5", "E5", "G5"], "16n");
+        } else if (type === 'click') {
+          synth.triggerAttackRelease(["G4"], "32n");
+        } else if (type === 'warning') {
+          synth.triggerAttackRelease(["F4", "Db4"], "16n");
+        } else if (type === 'tada') {
+          synth.triggerAttackRelease(["C5", "G5", "C6"], "8n");
+        }
+      } catch (err) {}
+    }
+
+    function toggleAudio() {
+      state.audioEnabled = !state.audioEnabled;
+      const btn = document.getElementById('sound-toggle-btn');
+      if (state.audioEnabled) {
+        btn.classList.replace('text-slate-500', 'text-slate-300');
+        showToast("Simulation audio effects enabled", "info");
+      } else {
+        btn.classList.replace('text-slate-300', 'text-slate-500');
+        showToast("Audio muted", "info");
+      }
+    }
+
+    /* Notification Toast System (No alert() used) */
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const borderClass = type === 'error' ? 'border-rose-500 bg-rose-950 text-rose-100' :
+                          type === 'success' ? 'border-emerald-500 bg-emerald-950 text-emerald-100' :
+                          type === 'warning' ? 'border-amber-500 bg-amber-950 text-amber-100' :
+                          'border-sky-500 bg-slate-900 text-sky-100';
+      toast.className = `p-3 rounded-lg border-l-4 shadow-xl text-xs pointer-events-auto transition-all transform duration-300 translate-y-2 opacity-0 flex items-center justify-between gap-3 ${borderClass}`;
+      toast.innerHTML = `<span>${message}</span><button onclick="this.parentElement.remove()" class="text-xs opacity-70 hover:opacity-100">&times;</button>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 20);
+
+      setTimeout(() => {
+        if (toast.parentElement) {
+          toast.classList.add('opacity-0', 'translate-y-2');
+          setTimeout(() => toast.remove(), 300);
+        }
+      }, 4000);
+    }
+
+    /* Tab Switching Navigation */
+    function switchTab(tabId) {
+      playTone('click');
+      state.currentTab = tabId;
+
+      // Update Nav Buttons
+      document.querySelectorAll('.nav-tab').forEach(b => {
+        b.classList.remove('active-tab', 'text-teal-300', 'bg-teal-950/80', 'border', 'border-teal-500/40');
+        b.classList.add('text-slate-300');
+      });
+
+      // Update Tab Sections
+      document.querySelectorAll('.tab-section').forEach(sec => sec.classList.add('hidden'));
+      const activeSec = document.getElementById(`section-${tabId}`);
+      if (activeSec) activeSec.classList.remove('hidden');
+
+      // Highlight active button
+      event?.currentTarget?.classList?.add('active-tab', 'text-teal-300', 'bg-teal-950/80', 'border', 'border-teal-500/40');
+      
+      updateHUD();
+      if (tabId === 'report') renderFinalTranscript();
+    }
+
+    function updateHUD() {
+      const total = Object.values(state.scores).reduce((a, b) => a + b, 0);
+      document.getElementById('hud-total-score').innerText = `${total} / 700`;
+      document.getElementById('hud-efficiency').innerText = `${Math.min(100, Math.max(40, state.efficiencyRate))}%`;
+      document.getElementById('hud-satisfaction').innerText = `${Math.min(100, Math.max(30, state.satisfactionRate))}%`;
+    }
+  </script>
+
+  <script>
+    const TIME_SLOTS = [
+      "08:00 AM", "08:15 AM", "08:30 AM", "08:45 AM",
+      "09:00 AM", "09:15 AM", "09:30 AM", "09:45 AM",
+      "10:00 AM", "10:15 AM", "10:30 AM", "10:45 AM",
+      "11:00 AM", "11:15 AM", "11:30 AM", "11:45 AM",
+      "12:00 PM", "12:15 PM", "12:30 PM", "12:45 PM", // LUNCH
+      "01:00 PM", "01:15 PM", "01:30 PM", "01:45 PM",
+      "02:00 PM", "02:15 PM", "02:30 PM", "02:45 PM",
+      "03:00 PM", "03:15 PM", "03:30 PM", "03:45 PM",
+      "04:00 PM", "04:15 PM", "04:30 PM", "04:45 PM"
+    ];
+
+    const APPT_CONFIG = {
+      NP: { name: 'New Patient Visit', durationMins: 45, slots: 3, color: 'indigo', initial: 2 },
+      PE: { name: 'Physical Exam', durationMins: 60, slots: 4, color: 'purple', initial: 1 },
+      AWE: { name: 'Annual Wellness Exam', durationMins: 30, slots: 2, color: 'emerald', initial: 3 },
+      FU: { name: 'Follow-Up Visit', durationMins: 15, slots: 1, color: 'sky', initial: 4 },
+      SICK: { name: 'Same-Day Sick Visit', durationMins: 20, slots: 1, color: 'amber', initial: 2 } // 1-slot buffer representation
+    };
+
+    function renderScheduleGrid() {
+      const container = document.getElementById('schedule-slots-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      TIME_SLOTS.forEach((time, idx) => {
+        const isLunch = (idx >= 16 && idx < 20); // 12:00 - 1:00 PM
+        const slotData = state.scheduleGrid[idx];
+
+        const row = document.createElement('div');
+        row.className = `grid grid-cols-12 items-center py-2.5 px-3 transition cursor-pointer text-xs ${
+          isLunch ? 'bg-slate-200/80 cursor-not-allowed' : 'hover:bg-slate-50'
+        }`;
+
+        if (isLunch) {
+          row.innerHTML = `
+            <div class="col-span-3 font-semibold text-slate-500">${time}</div>
+            <div class="col-span-6 font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2">
+              <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              Provider Lunch & Charting Break (Protected)
+            </div>
+            <div class="col-span-3 text-right text-slate-400 italic font-medium">Locked</div>
+          `;
+        } else if (slotData) {
+          const cfg = APPT_CONFIG[slotData.code];
+          row.innerHTML = `
+            <div class="col-span-3 font-bold text-slate-700">${time}</div>
+            <div class="col-span-6">
+              <span class="inline-flex items-center px-2.5 py-1 rounded-md font-semibold text-xs bg-${cfg.color}-100 text-${cfg.color}-800 border border-${cfg.color}-300">
+                ${cfg.name} (${cfg.durationMins}m)
+              </span>
+            </div>
+            <div class="col-span-3 text-right">
+              <button onclick="clearSlot(${idx}); event.stopPropagation();" class="text-rose-600 hover:text-rose-800 font-semibold text-[11px] px-2 py-0.5 rounded bg-rose-50 hover:bg-rose-100">
+                Remove
+              </button>
+            </div>
+          `;
+        } else {
+          row.innerHTML = `
+            <div class="col-span-3 text-slate-500">${time}</div>
+            <div class="col-span-6 text-slate-400 italic">Open Booking Slot (15 min)</div>
+            <div class="col-span-3 text-right">
+              <span class="text-teal-600 hover:text-teal-800 font-medium text-[11px] bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                Click to Book
+              </span>
+            </div>
+          `;
+          row.onclick = () => assignSlot(idx);
+        }
+
+        container.appendChild(row);
+      });
+
+      updateInventoryBadges();
+    }
+
+    function selectApptType(code) {
+      playTone('click');
+      state.selectedApptCode = code;
+      const cfg = APPT_CONFIG[code];
+
+      document.querySelectorAll('.appt-selector').forEach(el => el.classList.remove('ring-2', 'ring-teal-500'));
+      const activeEl = document.getElementById(`btn-appt-${code}`);
+      if (activeEl) activeEl.classList.add('ring-2', 'ring-teal-500');
+
+      document.getElementById('active-selected-label').innerHTML = `
+        <span class="font-extrabold text-${cfg.color}-700">${cfg.name} (${cfg.durationMins} mins / ${cfg.slots} slot blocks)</span>
+      `;
+    }
+
+    function assignSlot(slotIndex) {
+      if (!state.selectedApptCode) {
+        showToast("Select an appointment type from the left pool first!", "warning");
+        playTone('warning');
+        return;
+      }
+
+      const code = state.selectedApptCode;
+      const cfg = APPT_CONFIG[code];
+
+      if (state.inventory[code] <= 0) {
+        showToast(`All ${cfg.name} slots have already been assigned!`, "warning");
+        playTone('warning');
+        return;
+      }
+
+      // Check if consecutive slots are available
+      for (let i = 0; i < cfg.slots; i++) {
+        const target = slotIndex + i;
+        if (target >= TIME_SLOTS.length || (target >= 16 && target < 20) || state.scheduleGrid[target] !== null) {
+          showToast(`Not enough consecutive open blocks for ${cfg.name} (${cfg.slots * 15}m required).`, "error");
+          playTone('warning');
+          return;
+        }
+      }
+
+      // Place slots
+      for (let i = 0; i < cfg.slots; i++) {
+        state.scheduleGrid[slotIndex + i] = { code, rootIndex: slotIndex };
+      }
+
+      state.inventory[code]--;
+      playTone('click');
+      renderScheduleGrid();
+      showToast(`Booked ${cfg.name} at ${TIME_SLOTS[slotIndex]}`, "success");
+    }
+
+    function clearSlot(slotIndex) {
+      const item = state.scheduleGrid[slotIndex];
+      if (!item) return;
+
+      const code = item.code;
+      const root = item.rootIndex;
+      const cfg = APPT_CONFIG[code];
+
+      for (let i = 0; i < cfg.slots; i++) {
+        state.scheduleGrid[root + i] = null;
+      }
+
+      state.inventory[code]++;
+      playTone('click');
+      renderScheduleGrid();
+      showToast(`Removed ${cfg.name} from schedule`, "info");
+    }
+
+    function clearScheduleSlots() {
+      state.scheduleGrid = Array(32).fill(null);
+      state.inventory = { NP: 2, PE: 1, AWE: 3, FU: 4, SICK: 2 };
+      state.selectedApptCode = null;
+      document.getElementById('active-selected-label').innerText = 'None (Select from above)';
+      renderScheduleGrid();
+      showToast("Schedule reset to empty state.", "info");
+    }
+
+    function autoPopulateSchedule() {
+      clearScheduleSlots();
+      // Best Practice distribution template
+      // Morning
+      state.scheduleGrid[0] = { code: 'PE', rootIndex: 0 }; // 8:00 - 9:00
+      state.scheduleGrid[1] = { code: 'PE', rootIndex: 0 };
+      state.scheduleGrid[2] = { code: 'PE', rootIndex: 0 };
+      state.scheduleGrid[3] = { code: 'PE', rootIndex: 0 };
+
+      state.scheduleGrid[4] = { code: 'NP', rootIndex: 4 }; // 9:00 - 9:45
+      state.scheduleGrid[5] = { code: 'NP', rootIndex: 4 };
+      state.scheduleGrid[6] = { code: 'NP', rootIndex: 4 };
+
+      state.scheduleGrid[7] = { code: 'FU', rootIndex: 7 }; // 9:45 - 10:00
+
+      state.scheduleGrid[8] = { code: 'AWE', rootIndex: 8 }; // 10:00 - 10:30
+      state.scheduleGrid[9] = { code: 'AWE', rootIndex: 8 };
+
+      state.scheduleGrid[10] = { code: 'FU', rootIndex: 10 }; // 10:30 - 10:45
+      state.scheduleGrid[11] = { code: 'SICK', rootIndex: 11 }; // 10:45 - 11:00 (Buffer)
+
+      state.scheduleGrid[12] = { code: 'AWE', rootIndex: 12 }; // 11:00 - 11:30
+      state.scheduleGrid[13] = { code: 'AWE', rootIndex: 12 };
+
+      state.scheduleGrid[14] = { code: 'FU', rootIndex: 14 }; // 11:30 - 11:45
+      // 11:45-12:00 catch-up buffer
+
+      // Afternoon (1:00 PM = index 20)
+      state.scheduleGrid[20] = { code: 'NP', rootIndex: 20 }; // 1:00 - 1:45
+      state.scheduleGrid[21] = { code: 'NP', rootIndex: 20 };
+      state.scheduleGrid[22] = { code: 'NP', rootIndex: 20 };
+
+      state.scheduleGrid[23] = { code: 'FU', rootIndex: 23 }; // 1:45 - 2:00
+
+      state.scheduleGrid[24] = { code: 'AWE', rootIndex: 24 }; // 2:00 - 2:30
+      state.scheduleGrid[25] = { code: 'AWE', rootIndex: 24 };
+
+      state.scheduleGrid[26] = { code: 'SICK', rootIndex: 26 }; // 2:30 - 2:45 (PM buffer)
+
+      state.inventory = { NP: 0, PE: 0, AWE: 0, FU: 0, SICK: 0 };
+      playTone('success');
+      renderScheduleGrid();
+      showToast("Optimal Wave & Cluster Template loaded successfully!", "success");
+    }
+
+    function updateInventoryBadges() {
+      Object.keys(state.inventory).forEach(key => {
+        const badge = document.getElementById(`count-${key}`);
+        if (badge) badge.innerText = state.inventory[key];
+      });
+
+      const totalLeft = Object.values(state.inventory).reduce((a, b) => a + b, 0);
+      const queueBadge = document.getElementById('queue-remaining-badge');
+      if (queueBadge) queueBadge.innerText = `${totalLeft} Remaining`;
+    }
+
+    function evaluateSection1() {
+      const remaining = Object.values(state.inventory).reduce((a, b) => a + b, 0);
+      let score = 100;
+      const feedbackNotes = [];
+
+      if (remaining > 0) {
+        score -= (remaining * 10);
+        feedbackNotes.push(`⚠️ ${remaining} patient(s) remain unassigned. Provider schedule is underutilized.`);
+      }
+
+      // Check sick buffer placement: are sick visits placed near late morning / late afternoon?
+      let hasLateMorningSick = false;
+      let hasAfternoonSick = false;
+
+      state.scheduleGrid.forEach((item, idx) => {
+        if (item && item.code === 'SICK') {
+          if (idx >= 10 && idx <= 15) hasLateMorningSick = true;
+          if (idx >= 24 && idx <= 30) hasAfternoonSick = true;
+        }
+      });
+
+      if (!hasLateMorningSick || !hasAfternoonSick) {
+        score -= 15;
+        feedbackNotes.push(`⚠️ Inefficiency Detected: Same-Day Sick visits should be strategically separated (one in late morning, one in mid/late afternoon) to absorb acute same-day walk-in demand.`);
+      } else {
+        feedbackNotes.push(`✓ Excellent Sick-Buffer Allocation: Same-day acute visit slots are placed strategically before and after high-volume waves.`);
+      }
+
+      // Check new patient spacing (back-to-back NP fatigue)
+      let backToBackNP = false;
+      for (let i = 0; i < state.scheduleGrid.length - 3; i++) {
+        if (state.scheduleGrid[i]?.code === 'NP' && state.scheduleGrid[i+3]?.code === 'NP') {
+          backToBackNP = true;
+        }
+      }
+      if (backToBackNP) {
+        score -= 10;
+        feedbackNotes.push(`⚠️ Fatigue Risk: Back-to-back 45-minute New Patient visits create massive EHR charting backlogs. Space new patients apart with routine follow-ups.`);
+      } else {
+        feedbackNotes.push(`✓ Balanced Patient Mix: Comprehensive new patient visits are interspersed with short follow-up visits.`);
+      }
+
+      score = Math.max(0, score);
+      state.scores.sec1 = score;
+      updateHUD();
+
+      const fbDiv = document.getElementById('sec1-feedback');
+      fbDiv.className = `mt-6 p-5 rounded-xl border ${score >= 80 ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-amber-50 border-amber-300 text-amber-950'}`;
+      fbDiv.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-bold text-base flex items-center gap-2">
+            <span class="text-xl">${score >= 80 ? '🎖️' : '📋'}</span>
+            Schedule Utilization & Administrative Audit: ${score}/100 Pts
+          </h4>
+          <span class="px-3 py-1 rounded-full text-xs font-bold ${score >= 80 ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'}">
+            Utilization Rate: ${Math.round(((32 - 4 - remaining) / 28) * 100)}%
+          </span>
+        </div>
+        <div class="space-y-1.5 text-xs leading-relaxed mb-4">
+          ${feedbackNotes.map(n => `<p>${n}</p>`).join('')}
+        </div>
+        <div class="text-xs text-slate-700 bg-white p-3 rounded-lg border border-slate-200">
+          <strong>MDCA 1421 Competency Rationale:</strong> A master scheduling matrix must preserve sacred physician breaks, prevent clinician burnout by clustering identical appointment types (Cluster Scheduling), and maintain open buffer times for inevitable clinical emergencies.
+        </div>
+      `;
+      fbDiv.classList.remove('hidden');
+      playTone(score >= 80 ? 'success' : 'warning');
+      showToast(`Section 1 Score: ${score}/100`, score >= 80 ? 'success' : 'warning');
+    }
+  </script>
+
+  <script>
+    const CONFLICT_SCENARIOS = [
+      {
+        id: 1,
+        title: "Patient Arrives 25 Minutes Late",
+        scenario: "Mrs. Adams is scheduled for a 15-minute follow-up at 10:00 AM. She arrives at 10:25 AM during another patient's appointment, stating traffic was terrible. Dr. Smith is currently on schedule.",
+        options: [
+          { text: "Force the next scheduled on-time patient to wait and immediately squeeze Mrs. Adams into the exam room.", correct: false, rationale: "Unfair to on-time patients; snowball delays will ruin the entire afternoon schedule and frustrate others." },
+          { text: "Politely explain the office late-arrival policy, check for open buffer/catch-up slots later in the day, or offer a telehealth/rescheduled visit.", correct: true, rationale: "Protects schedule integrity while demonstrating empathy. Offers viable same-day workarounds if clinical capacity allows." },
+          { text: "Scold Mrs. Adams at the front desk and charge her a $100 penalty fee immediately.", correct: false, rationale: "Unprofessional, violates patient rapport and practice customer service policies." },
+          { text: "Send Mrs. Adams directly to the Emergency Room.", correct: false, rationale: "Inappropriate utilization of emergency resources for a routine, non-acute follow-up." }
+        ]
+      },
+      {
+        id: 2,
+        title: "Provider Called for Hospital Emergency",
+        scenario: "At 1:15 PM, Dr. Smith receives an urgent hospital page regarding an ICU patient with acute cardiac arrest. Dr. Smith must leave the clinic immediately for at least 2 hours. Five afternoon patients are currently waiting or en route.",
+        options: [
+          { text: "Say nothing to the patients and let them sit in the waiting room until Dr. Smith returns.", correct: false, rationale: "Severe patient dissatisfaction, breaches trust, and disrespects patients' valuable time." },
+          { text: "Immediately triage waiting patients: offer to transfer acute cases to the covering physician/urgent care, rebook routine appointments with priority slots, and notify patients still in transit.", correct: true, rationale: "Emergency contingency standard of care: transparent communication, clinical triage, and prioritized rebooking." },
+          { text: "Lock the clinic doors and tell the medical assistants to go home early.", correct: false, rationale: "Abandonment of duty and leaves urgent patient clinical inquiries completely unmanaged." },
+          { text: "Instruct the Medical Assistant to diagnose patients and perform medication adjustments in Dr. Smith's absence.", correct: false, rationale: "Severe violation of Medical Assistant scope of practice and illegal practice of medicine without a license." }
+        ]
+      },
+      {
+        id: 3,
+        title: "Accidental Double-Booking",
+        scenario: "Due to an EHR sync glitch, two patients—Mr. Davis (Routine BP check) and Ms. Garcia (Suture removal)—were both scheduled for Dr. Smith at 2:00 PM.",
+        options: [
+          { text: "Tell whichever patient walked through the door second to leave the clinic.", correct: false, rationale: "Rude and causes severe patient complaints for a clinic administrative mistake." },
+          { text: "Admit the administrative oversight, review appointment types: MA can prepare Ms. Garcia for suture removal while Dr. Smith sees Mr. Davis, or utilize the clinic minor procedure room.", correct: true, rationale: "Utilizes team-based care and clinical task-shifting within the MA scope of practice to accommodate both patients seamlessly." },
+          { text: "Put both patients together in the same exam room at the same time.", correct: false, rationale: "Blatant HIPAA violation regarding patient privacy and clinical confidentiality." },
+          { text: "Cancel both appointments and ask them to return next month.", correct: false, rationale: "Excessive delay for time-sensitive suture removal, putting the patient at risk of wound complications." }
+        ]
+      },
+      {
+        id: 4,
+        title: "Walk-in with Urgent Symptoms",
+        scenario: "A 58-year-old walk-in patient approaches the front desk clutching their chest, visibly diaphoretic (sweaty), and complaining of crushing substernal pressure and shortness of breath.",
+        options: [
+          { text: "Hand the patient a 4-page clipboard to fill out their demographic and insurance information before speaking to anyone.", correct: false, rationale: "Life-threatening delay. Never delay urgent medical assessment for administrative paperwork." },
+          { text: "Immediately notify the clinical MA / triage nurse / provider, move patient to clinical triage/treatment room, activate 911 / EMS, and prepare emergency equipment.", correct: true, rationale: "Medical emergency protocol: MA immediate response for suspected acute coronary syndrome." },
+          { text: "Advise the patient that Dr. Smith is fully booked today and offer an appointment for tomorrow morning.", correct: false, rationale: "Gross medical negligence resulting in imminent patient fatality." },
+          { text: "Tell the patient to take a deep breath and sit in the waiting room for 45 minutes.", correct: false, rationale: "Critical patient safety violation." }
+        ]
+      },
+      {
+        id: 5,
+        title: "Sudden Cancellation Leaves 45-Min Hole",
+        scenario: "At 10:15 AM, a new patient scheduled for 10:30 AM calls to cancel due to a family emergency, leaving a 45-minute idle vacancy in Dr. Smith’s morning schedule.",
+        options: [
+          { text: "Leave the slot empty and take a 45-minute coffee break.", correct: false, rationale: "Wastes valuable provider clinical availability and practice overhead." },
+          { text: "Consult the clinic's prioritized Waitlist / ASAP Callback list to offer the slot to an established patient seeking an earlier appointment, or catch up on prior authorizations.", correct: true, rationale: "Maximizes clinic schedule utilization and expedites needed clinical care for patients on waitlists." },
+          { text: "Call a random patient and threaten to discharge them if they do not arrive in 10 minutes.", correct: false, rationale: "Coercive and unprofessional behavior." },
+          { text: "Delete the slot from the schedule history so no one knows it existed.", correct: false, rationale: "Violates legal medical record and schedule auditing integrity." }
+        ]
+      },
+      {
+        id: 6,
+        title: "Chronic No-Show Demands Peak Slot",
+        scenario: "A patient who has no-showed three consecutive appointments calls demanding a 4:30 PM appointment on a Friday afternoon.",
+        options: [
+          { text: "Book the Friday 4:30 PM slot without comment.", correct: false, rationale: "High probability of another no-show during peak demand time, wasting clinic revenue." },
+          { text: "Enforce practice chronic no-show policy: require same-day call-in booking, schedule during non-peak midday hours, or review policy with practice manager.", correct: true, rationale: "Mitigates schedule disruption while maintaining patient access within clinic policy parameters." },
+          { text: "Hang up the phone immediately.", correct: false, rationale: "Unprofessional and hostile communication." },
+          { text: "Tell the patient they are permanently banned from all healthcare facilities in Texas.", correct: false, rationale: "Legally inaccurate and hostile." }
+        ]
+      },
+      {
+        id: 7,
+        title: "Pharmaceutical Rep Drop-In",
+        scenario: "A pharmaceutical sales representative arrives at 11:30 AM unannounced with lunch boxes, demanding 15 minutes of Dr. Smith's time during clinic hours.",
+        options: [
+          { text: "Interrupt Dr. Smith's active patient exam to introduce the sales rep.", correct: false, rationale: "Unacceptable breach of patient consultation time and clinical privacy." },
+          { text: "Advise rep of the clinic's vendor policy: schedule formal vendor visits during designated administrative lunch slots or after hours.", correct: true, rationale: "Adheres to practice vendor management guidelines while protecting direct patient care hours." },
+          { text: "Eat the lunch boxes at the front desk and tell the rep Dr. Smith moved out of the country.", correct: false, rationale: "Unprofessional demeanor." },
+          { text: "Let the rep wander freely through the patient exam rooms.", correct: false, rationale: "Severe HIPAA violation and patient safety compromise." }
+        ]
+      },
+      {
+        id: 8,
+        title: "Patient with Multiple Unscheduled Family Members",
+        scenario: "Mrs. Nguyen arrives for her 2:00 PM appointment with her two adolescent children. She requests that Dr. Smith also examine both children for physical exams today since 'they are already here.'",
+        options: [
+          { text: "Examine all 3 patients in a single 15-minute slot.", correct: false, rationale: "Impossible to perform quality clinical care; causes massive delays for subsequent patients." },
+          { text: "Explain that each patient requires their own reserved clinical time and chart documentation. Check if open buffer slots exist today or schedule the children for dedicated appointments.", correct: true, rationale: "Maintains standard of care, legal charting compliance, and billing integrity while offering scheduling alternatives." },
+          { text: "Refuse to see Mrs. Nguyen at all because she brought family members.", correct: false, rationale: "Punitive and unwarranted denial of care." },
+          { text: "Bill all visits under Mrs. Nguyen's name and insurance without creating charts for the children.", correct: false, rationale: "Insurance fraud and illegal falsification of medical records." }
+        ]
+      },
+      {
+        id: 9,
+        title: "Interpreter Delay for Non-English Speaker",
+        scenario: "A non-English-speaking patient is roomed for a 3:00 PM diabetes consult. The on-site medical interpreter has been delayed by 25 minutes.",
+        options: [
+          { text: "Use Google Translate on a personal phone to conduct the entire complex medical exam.", correct: false, rationale: "Violates HIPAA if unprotected, and inaccurate machine translation can cause dangerous medication errors." },
+          { text: "Immediately connect to the certified medical translation video/audio telephone service (Language Line) to prevent clinical delay.", correct: true, rationale: "Complies with Title VI of the Civil Rights Act and ensures certified clinical interpretation." },
+          { text: "Ask a random stranger in the waiting room to interpret private medical details.", correct: false, rationale: "HIPAA violation and inappropriate disclosure of protected health information." },
+          { text: "Perform the entire exam using hand gestures only without communicating.", correct: false, rationale: "Compromises informed consent, patient safety, and clinical comprehension." }
+        ]
+      },
+      {
+        id: 10,
+        title: "Irate Patient Waiting Past Appointment Time",
+        scenario: "Due to an earlier complex diabetic crisis, Dr. Smith is running 35 minutes behind. An established patient, Mr. Sterling, approaches the desk shouting angrily about his lost time.",
+        options: [
+          { text: "Shout back at Mr. Sterling that doctors are busy and he should be grateful.", correct: false, rationale: "Escalates confrontation and violates professional de-escalation standards." },
+          { text: "De-escalate using the HEAT method (Hear, Empathize, Apologize, Take Action): acknowledge delay, validate frustration, explain emergency delay without violating HIPAA, and offer options.", correct: true, rationale: "Proven healthcare de-escalation model that rebuilds patient trust while protecting patient confidentiality." },
+          { text: "Call clinic security immediately to physically escort him out without speaking.", correct: false, rationale: "Inappropriate escalation for a frustrated patient with legitimate wait-time concerns." },
+          { text: "Blame Dr. Smith by telling the patient that the doctor is just slow and lazy today.", correct: false, rationale: "Destroys provider reputation and undermines clinic team solidarity." }
+        ]
+      }
+    ];
+
+    function renderConflictScenario() {
+      const container = document.getElementById('conflict-card-container');
+      if (!container) return;
+
+      const sc = CONFLICT_SCENARIOS[state.conflictIndex];
+      document.getElementById('conflict-progress-badge').innerText = `Scenario ${state.conflictIndex + 1} of 10`;
+
+      container.innerHTML = `
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-800">Scenario ${sc.id}: ${sc.title}</span>
+            <span class="text-xs text-slate-500 font-semibold">10 Points Possible</span>
+          </div>
+          <h3 class="text-base font-bold text-slate-900 mb-2">${sc.title}</h3>
+          <p class="text-sm text-slate-700 bg-white p-4 rounded-lg border border-slate-200 mb-5 leading-relaxed shadow-xs">
+            ${sc.scenario}
+          </p>
+
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Select the Professional Administrative Action:</h4>
+          <div class="space-y-3" id="conflict-options-list">
+            ${sc.options.map((opt, oIdx) => `
+              <div onclick="selectConflictOption(${oIdx})" id="conflict-opt-${oIdx}" class="p-3.5 rounded-xl border border-slate-300 bg-white hover:border-sky-400 hover:bg-sky-50/50 cursor-pointer text-xs transition flex items-start gap-3">
+                <span class="h-5 w-5 rounded-full border border-slate-400 flex items-center justify-center font-bold text-[10px] text-slate-600 shrink-0 mt-0.5">${String.fromCharCode(65 + oIdx)}</span>
+                <span class="text-slate-800 leading-normal">${opt.text}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div id="conflict-feedback-box" class="hidden mt-5 p-4 rounded-xl text-xs leading-relaxed"></div>
+
+          <div class="mt-5 pt-4 border-t border-slate-200 flex justify-between items-center">
+            <span class="text-xs text-slate-500 font-medium">Running Conflicts Score: <strong class="text-sky-700 font-bold" id="conflict-running-score">${state.scores.sec2} / 100</strong></span>
+            <button id="conflict-next-btn" onclick="nextConflictScenario()" class="hidden px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold transition">
+              ${state.conflictIndex === 9 ? 'Finish Section 2' : 'Next Scenario &rarr;'}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function selectConflictOption(optIdx) {
+      const sc = CONFLICT_SCENARIOS[state.conflictIndex];
+      const opt = sc.options[optIdx];
+      const fbBox = document.getElementById('conflict-feedback-box');
+      const nextBtn = document.getElementById('conflict-next-btn');
+
+      // Disable further clicks on options
+      document.querySelectorAll('#conflict-options-list > div').forEach((div, i) => {
+        div.onclick = null;
+        div.classList.remove('hover:bg-sky-50/50', 'hover:border-sky-400', 'cursor-pointer');
+        if (sc.options[i].correct) {
+          div.classList.add('bg-emerald-50', 'border-emerald-500', 'text-emerald-950');
+        } else if (i === optIdx) {
+          div.classList.add('bg-rose-50', 'border-rose-400', 'text-rose-950');
+        }
+      });
+
+      if (opt.correct) {
+        state.scores.sec2 += 10;
+        state.satisfactionRate += 1;
+        playTone('success');
+        fbBox.className = "mt-5 p-4 rounded-xl text-xs leading-relaxed bg-emerald-50 border border-emerald-300 text-emerald-900";
+        fbBox.innerHTML = `<strong>✓ Correct Decision (+10 pts):</strong> ${opt.rationale}`;
+      } else {
+        state.efficiencyRate -= 2;
+        state.satisfactionRate -= 3;
+        playTone('warning');
+        fbBox.className = "mt-5 p-4 rounded-xl text-xs leading-relaxed bg-rose-50 border border-rose-300 text-rose-900";
+        fbBox.innerHTML = `<strong>✗ Suboptimal Choice (0 pts):</strong> ${opt.rationale}<br><span class="mt-1 block text-slate-700"><strong>Recommended Best Practice:</strong> ${sc.options.find(o => o.correct).rationale}</span>`;
+      }
+
+      fbBox.classList.remove('hidden');
+      nextBtn.classList.remove('hidden');
+      document.getElementById('conflict-running-score').innerText = `${state.scores.sec2} / 100`;
+      updateHUD();
+    }
+
+    function nextConflictScenario() {
+      if (state.conflictIndex < CONFLICT_SCENARIOS.length - 1) {
+        state.conflictIndex++;
+        renderConflictScenario();
+      } else {
+        showToast("Section 2 Complete! Conflicts Mastery Score: " + state.scores.sec2 + "/100", "success");
+        playTone('tada');
+        // Final feedback view
+        const container = document.getElementById('conflict-card-container');
+        container.innerHTML = `
+          <div class="p-6 bg-sky-50 border border-sky-300 rounded-2xl text-center">
+            <h3 class="text-xl font-bold text-sky-950">Section 2 Competency Completed!</h3>
+            <p class="text-sm text-sky-800 mt-2">You achieved a final score of <strong>${state.scores.sec2} / 100</strong> across 10 realistic ambulatory scheduling challenges.</p>
+            <div class="mt-4 flex justify-center gap-3">
+              <button onclick="state.conflictIndex = 0; renderConflictScenario();" class="px-4 py-2 bg-white border border-sky-300 text-sky-800 rounded-lg text-xs font-semibold">Review / Retry Scenarios</button>
+              <button onclick="switchTab('sec3')" class="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-bold shadow-sm">Proceed to Section 3: Prioritization &rarr;</button>
+            </div>
+          </div>
+        `;
+      }
+    }
+  </script>
+
+  <script>
+    function renderPrioritizationList() {
+      const container = document.getElementById('prioritization-list');
+      if (!container) return;
+      container.innerHTML = '';
+
+      state.prioritizationOrder.forEach((patient, index) => {
+        const item = document.createElement('div');
+        item.className = "p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs flex items-center justify-between gap-3 text-xs";
+        item.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="h-7 w-7 rounded-lg bg-purple-100 text-purple-800 font-extrabold flex items-center justify-center text-xs shrink-0">
+              #${index + 1}
+            </span>
+            <div>
+              <div class="font-bold text-slate-800">${patient.label}</div>
+              <div class="text-[11px] text-purple-600 font-semibold mt-0.5">${patient.urgency}</div>
+            </div>
+          </div>
+          <div class="flex items-center space-x-1 shrink-0">
+            <button onclick="movePriority(${index}, -1)" ${index === 0 ? 'disabled class="opacity-30 p-1.5 rounded bg-slate-100"' : 'class="p-1.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100"'} title="Move Up">
+              ▲
+            </button>
+            <button onclick="movePriority(${index}, 1)" ${index === state.prioritizationOrder.length - 1 ? 'disabled class="opacity-30 p-1.5 rounded bg-slate-100"' : 'class="p-1.5 rounded bg-purple-50 text-purple-700 hover:bg-purple-100"'} title="Move Down">
+              ▼
+            </button>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function movePriority(index, delta) {
+      playTone('click');
+      const targetIndex = index + delta;
+      if (targetIndex < 0 || targetIndex >= state.prioritizationOrder.length) return;
+
+      const temp = state.prioritizationOrder[index];
+      state.prioritizationOrder[index] = state.prioritizationOrder[targetIndex];
+      state.prioritizationOrder[targetIndex] = temp;
+      renderPrioritizationList();
+    }
+
+    function resetPrioritization() {
+      state.prioritizationOrder = [
+        { id: 'hypertension', label: 'Hypertension Follow-Up with blood pressure reading 158/94', urgency: 'Priority Chronic', code: '3' },
+        { id: 'wellness', label: 'Annual Wellness Exam (preventive checkup with no active complaints)', urgency: 'Elective Preventive', code: '5' },
+        { id: 'chest_pain', label: 'Patient with Acute Chest Pain radiating to jaw', urgency: 'Immediate Emergency', code: '1' },
+        { id: 'refill', label: 'Medication refill for maintenance thyroid hormone (Levothyroxine)', urgency: 'Routine Non-Urgent', code: '4' },
+        { id: 'fever', label: 'Pediatric patient with 102.5°F fever for 3 days', urgency: 'Urgent Same-Day', code: '2' }
+      ];
+      renderPrioritizationList();
+      showToast("Order reset to randomized sequence.", "info");
+    }
+
+    function evaluatePrioritization() {
+      const rationaleText = document.getElementById('prioritization-rationale')?.value.trim() || "";
+      let score = 100;
+      const notes = [];
+
+      // Ideal clinical order:
+      // 1. chest_pain (Emergency)
+      // 2. fever (Urgent Same-Day)
+      // 3. hypertension (Priority Follow-Up)
+      // 4. refill (Routine medication need)
+      // 5. wellness (Preventive elective)
+      const correctOrder = ['chest_pain', 'fever', 'hypertension', 'refill', 'wellness'];
+
+      state.prioritizationOrder.forEach((item, idx) => {
+        if (item.id !== correctOrder[idx]) {
+          score -= 15;
+        }
+      });
+
+      if (state.prioritizationOrder[0].id !== 'chest_pain') {
+        notes.push("CRITICAL ERROR: Chest pain was NOT ranked #1. Suspected acute myocardial infarction must ALWAYS take precedence over any other non-emergency scheduling request.");
+      } else {
+        notes.push("✓ Perfect Emergency Triage: Chest pain correctly recognized as top emergent priority requiring immediate transfer/emergency evaluation.");
+      }
+
+      if (rationaleText.length < 35) {
+        score -= 20;
+        notes.push("⚠️ Incomplete Rationale: Clinical reasoning response lacked depth regarding triage guidelines and clinic liability.");
+      } else {
+        notes.push("✓ Well-articulated student clinical rationale provided.");
+      }
+
+      score = Math.max(0, score);
+      state.scores.sec3 = score;
+      updateHUD();
+
+      const fb = document.getElementById('sec3-feedback');
+      fb.className = `mt-6 p-5 rounded-xl border ${score >= 80 ? 'bg-purple-50 border-purple-300 text-purple-950' : 'bg-amber-50 border-amber-300 text-amber-950'}`;
+      fb.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-bold text-base">Triage Hierarchy Audit: ${score}/100 Pts</h4>
+          <span class="px-3 py-1 rounded-full text-xs font-bold ${score >= 80 ? 'bg-purple-200 text-purple-900' : 'bg-amber-200 text-amber-900'}">
+            Rank Accuracy: ${Math.round((score/100)*100)}%
+          </span>
+        </div>
+        <div class="space-y-1.5 text-xs mb-3">
+          ${notes.map(n => `<p>${n}</p>`).join('')}
+        </div>
+        <div class="mt-3 p-3 bg-white rounded-lg border border-purple-200 text-xs text-slate-700">
+          <strong>Official Medical Assisting Clinical Hierarchy:</strong>
+          <ol class="list-decimal pl-5 mt-1 space-y-0.5">
+            <li><strong>1. Chest Pain:</strong> Emergency (Call 911 / Immediate Provider Assessment).</li>
+            <li><strong>2. Pediatric 102.5°F Fever:</strong> Acute Same-Day Sick (Risk of febrile seizure/dehydration).</li>
+            <li><strong>3. Uncontrolled Hypertension (158/94):</strong> Chronic disease exacerbation (Schedule within 24-48 hrs).</li>
+            <li><strong>4. Routine Thyroid Refill:</strong> Administrative task (Verify compliance, schedule within 5-7 days or call pharmacy).</li>
+            <li><strong>5. Annual Wellness Exam:</strong> Preventive checkup (Book in next available routine block).</li>
+          </ol>
+        </div>
+      `;
+      fb.classList.remove('hidden');
+      playTone(score >= 80 ? 'success' : 'warning');
+      showToast(`Section 3 Score: ${score}/100`, score >= 80 ? 'success' : 'warning');
+    }
+  </script>
+
+  <script>
+    const INTERVENTIONS_DATA = [
+      {
+        id: 'automated_sms',
+        name: 'Automated 2-Way Text (SMS) Reminders',
+        desc: 'Send automated text prompts 72 hrs and 24 hrs prior; allows patient to text "C" to confirm or "R" to reschedule.',
+        reductionPct: 9.0,
+        satisfactionImpact: +8,
+        cost: 'Low'
+      },
+      {
+        id: 'phone_calls',
+        name: 'Live MA Telephone Confirmation Calls',
+        desc: 'Personal clinical calls 1 day prior for elderly, pediatric, or complex new patients.',
+        reductionPct: 6.0,
+        satisfactionImpact: +6,
+        cost: 'Moderate'
+      },
+      {
+        id: 'online_portal',
+        name: 'Patient Portal Self-Service Scheduling',
+        desc: 'Enables 24/7 rescheduling so patients can adjust appointments without waiting on telephone hold.',
+        reductionPct: 4.5,
+        satisfactionImpact: +10,
+        cost: 'Low'
+      },
+      {
+        id: 'waitlist_fill',
+        name: 'Electronic "Fast-Pass" Waitlist Fill System',
+        desc: 'Automatically broadcasts cancelled appointments via SMS to patients on waitlist to instantly backfill openings.',
+        reductionPct: 3.5,
+        satisfactionImpact: +7,
+        cost: 'Low'
+      },
+      {
+        id: 'reminder_postcards',
+        name: 'Postal Reminder Postcards',
+        desc: 'Mailing paper reminder postcards 2 weeks prior to visit.',
+        reductionPct: 1.0,
+        satisfactionImpact: +1,
+        cost: 'High (Paper & Postage)'
+      },
+      {
+        id: 'heavy_double_booking',
+        name: 'Aggressive Double-Booking Strategy',
+        desc: 'Deliberately schedule 2 patients in every single slot expecting one to not show up.',
+        reductionPct: -2.0, // Actually increases clinic chaos
+        satisfactionImpact: -25,
+        cost: 'Zero direct cost, high liability'
+      },
+      {
+        id: 'cash_deposits',
+        name: 'Mandatory Non-Refundable $50 Cash Deposit',
+        desc: 'Require all patients to pay $50 upfront over the phone before booking any appointment.',
+        reductionPct: 8.0,
+        satisfactionImpact: -30,
+        cost: 'High friction / barriers to care'
+      }
+    ];
+
+    function renderNoShowOptions() {
+      const container = document.getElementById('noshow-options-grid');
+      if (!container) return;
+      container.innerHTML = '';
+
+      INTERVENTIONS_DATA.forEach(item => {
+        const isSelected = state.activeInterventions.has(item.id);
+        const card = document.createElement('div');
+        card.onclick = () => toggleNoShowIntervention(item.id);
+        card.className = `p-3.5 rounded-xl border cursor-pointer transition flex flex-col justify-between ${
+          isSelected ? 'bg-amber-50/70 border-amber-500 shadow-xs' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+        }`;
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-bold text-xs text-slate-900">${item.name}</span>
+              <span class="h-4 w-4 rounded-md border flex items-center justify-center text-[10px] ${
+                isSelected ? 'bg-amber-600 border-amber-600 text-white font-bold' : 'border-slate-300 bg-white'
+              }">${isSelected ? '✓' : ''}</span>
+            </div>
+            <p class="text-[11px] text-slate-600 leading-relaxed">${item.desc}</p>
+          </div>
+          <div class="mt-2.5 pt-2 border-t border-slate-200 flex justify-between text-[10px] text-slate-500">
+            <span>Operating Cost: <strong>${item.cost}</strong></span>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      calculateNoShowProjections();
+    }
+
+    function toggleNoShowIntervention(id) {
+      playTone('click');
+      if (state.activeInterventions.has(id)) {
+        state.activeInterventions.delete(id);
+      } else {
+        state.activeInterventions.add(id);
+      }
+      renderNoShowOptions();
+    }
+
+    function calculateNoShowProjections() {
+      let baseline = 25.0; // 25% baseline
+      let satisfaction = 70;
+
+      state.activeInterventions.forEach(id => {
+        const item = INTERVENTIONS_DATA.find(x => x.id === id);
+        if (item) {
+          baseline -= item.reductionPct;
+          satisfaction += item.satisfactionImpact;
+        }
+      });
+
+      baseline = Math.max(3.5, Math.min(35.0, baseline));
+      satisfaction = Math.max(20, Math.min(99, satisfaction));
+
+      // Calculate recovered revenue: each 1% drop recovers ~$480/month
+      const percentDrop = Math.max(0, 25.0 - baseline);
+      const recoveredRevenue = Math.round(percentDrop * 520);
+
+      document.getElementById('sim-noshow-rate').innerText = `${baseline.toFixed(1)}%`;
+      document.getElementById('sim-noshow-bar').style.width = `${(baseline / 25.0) * 100}%`;
+
+      document.getElementById('sim-revenue-val').innerText = `$${recoveredRevenue.toLocaleString()} / mo`;
+      document.getElementById('sim-revenue-bar').style.width = `${Math.min(100, (recoveredRevenue / 12000) * 100)}%`;
+
+      document.getElementById('sim-satisfaction-val').innerText = `${satisfaction}% (${satisfaction >= 85 ? 'Exceptional' : satisfaction >= 70 ? 'Moderate' : 'Unfavorable'})`;
+      document.getElementById('sim-satisfaction-bar').style.width = `${satisfaction}%`;
+    }
+
+    function commitNoShowStrategy() {
+      if (state.activeInterventions.size === 0) {
+        showToast("Select at least 2 interventions to construct your QI plan!", "warning");
+        playTone('warning');
+        return;
+      }
+
+      let score = 100;
+      const notes = [];
+
+      // Check for bad interventions
+      if (state.activeInterventions.has('heavy_double_booking')) {
+        score -= 30;
+        notes.push("❌ Penalized for Aggressive Double-Booking: Double-booking every slot leads to catastrophic waiting room crowding, 45+ minute delays, patient fury, and staff burnout.");
+      }
+      if (state.activeInterventions.has('cash_deposits')) {
+        score -= 25;
+        notes.push("❌ Heavy Barrier to Care: Upfront $50 mandatory deposits alienate low-income patients, violate Medicaid provider agreements, and drive patients to competitor practices.");
+      }
+      if (state.activeInterventions.has('automated_sms')) {
+        notes.push("✓ Evidence-Based Standard: Automated 2-way SMS reduces no-shows by up to 38% without consuming manual staff telephone hours.");
+      }
+      if (state.activeInterventions.has('online_portal')) {
+        notes.push("✓ Digital Patient Empowerment: 24/7 self-service portal accommodates shift workers and reduces daytime telephone hold queues.");
+      }
+      if (state.activeInterventions.has('waitlist_fill')) {
+        notes.push("✓ Lean Revenue Recovery: Fast-pass waitlist backfilling transforms cancellations into productive provider encounters within minutes.");
+      }
+
+      score = Math.max(0, score);
+      state.scores.sec4 = score;
+      updateHUD();
+
+      const fb = document.getElementById('sec4-feedback');
+      fb.className = `mt-6 p-5 rounded-xl border ${score >= 80 ? 'bg-emerald-50 border-emerald-300 text-emerald-950' : 'bg-amber-50 border-amber-300 text-amber-950'}`;
+      fb.innerHTML = `
+        <h4 class="font-bold text-base mb-2">Quality Improvement Strategy Audit: ${score}/100 Pts</h4>
+        <div class="space-y-1.5 text-xs mb-3">
+          ${notes.map(n => `<p>${n}</p>`).join('')}
+        </div>
+        <p class="text-xs text-slate-700 bg-white p-3 rounded-lg border border-slate-200">
+          <strong>Administrative Competency Takeaway:</strong> Punitive measures (excessive fees, blind double-booking) degrade trust. Modern ambulatory practices succeed through omnichannel automation (SMS + Portal + Rapid Waitlist Fill).
+        </p>
+      `;
+      fb.classList.remove('hidden');
+      playTone(score >= 80 ? 'success' : 'warning');
+      showToast(`Section 4 Score: ${score}/100`, score >= 80 ? 'success' : 'warning');
+    }
+  </script>
+
+  <script>
+    function loadReferralCase(caseIdx) {
+      playTone('click');
+      state.currentReferralIndex = caseIdx;
+
+      // Update Subtabs
+      for (let i = 0; i < 3; i++) {
+        const btn = document.getElementById(`ref-tab-${i}`);
+        if (i === caseIdx) {
+          btn.className = "px-3 py-1.5 rounded-md text-xs font-bold bg-teal-600 text-white";
+        } else {
+          btn.className = "px-3 py-1.5 rounded-md text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200";
+        }
+      }
+
+      renderReferralCase();
+    }
+
+    function renderReferralCase() {
+      const container = document.getElementById('referral-case-body');
+      if (!container) return;
+
+      const cData = state.referralData[state.currentReferralIndex];
+      const userAnswers = state.referralUserChoices[state.currentReferralIndex];
+
+      container.innerHTML = `
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-5">
+          <!-- Case Brief -->
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+              <span class="text-xs uppercase font-extrabold tracking-wider text-teal-700">${cData.specialty}</span>
+              <span class="text-xs font-semibold text-slate-500">Patient: <strong>${cData.patient}</strong></span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div>
+                <span class="text-slate-400 block font-semibold">Clinical Indication / Diagnosis:</span>
+                <span class="text-slate-800 font-bold">${cData.diagnosis}</span>
+              </div>
+              <div>
+                <span class="text-slate-400 block font-semibold">Insurance & Payer Rules:</span>
+                <span class="text-slate-800 font-bold">${cData.insurance}</span>
+              </div>
+            </div>
+
+            <!-- Mandatory Document Checklist -->
+            <div class="mt-4 pt-3 border-t border-slate-100">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Required Referral Packet Documentation:</span>
+              <div class="flex flex-wrap gap-2">
+                ${cData.requiredDocs.map(doc => `
+                  <span class="px-2.5 py-1 rounded-md bg-teal-50 text-teal-800 border border-teal-200 text-[11px] font-semibold flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    ${doc}
+                  </span>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+          <!-- Branching Referral Decision Steps -->
+          <div class="space-y-5" id="referral-steps-container">
+            ${cData.steps.map((st, sIdx) => {
+              const answered = userAnswers[sIdx] !== undefined;
+              const isCorrect = answered && userAnswers[sIdx] === st.correct;
+              return `
+                <div class="bg-white p-4 rounded-xl border ${answered ? (isCorrect ? 'border-emerald-300 bg-emerald-50/20' : 'border-rose-300 bg-rose-50/20') : 'border-slate-200'}">
+                  <h4 class="text-xs font-bold text-slate-800 mb-2">${st.question}</h4>
+                  <div class="space-y-2">
+                    ${st.options.map((optText, oIdx) => `
+                      <div onclick="answerReferralStep(${sIdx}, ${oIdx})" class="p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+                        answered
+                          ? (oIdx === st.correct
+                              ? 'bg-emerald-100 border-emerald-400 font-semibold text-emerald-900'
+                              : (oIdx === userAnswers[sIdx] ? 'bg-rose-100 border-rose-400 text-rose-900' : 'bg-slate-50 border-slate-200 text-slate-400 opacity-60'))
+                          : 'bg-slate-50 border-slate-200 hover:bg-teal-50 hover:border-teal-300 text-slate-700'
+                      }">
+                        ${optText}
+                      </div>
+                    `).join('')}
+                  </div>
+                  ${answered ? `
+                    <div class="mt-3 p-2.5 rounded-lg text-[11px] ${isCorrect ? 'bg-emerald-50 text-emerald-900 border border-emerald-200' : 'bg-rose-50 text-rose-900 border border-rose-200'}">
+                      <strong>${isCorrect ? '✓ Correct Protocol:' : '✗ Administrative Error:'}</strong> ${st.rationale}
+                    </div>
+                  ` : ''}
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <div class="mt-6 flex justify-between items-center pt-4 border-t border-slate-200">
+            <span class="text-xs text-slate-500">Case ${state.currentReferralIndex + 1} of 3</span>
+            ${state.currentReferralIndex < 2 ? `
+              <button onclick="loadReferralCase(${state.currentReferralIndex + 1})" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-sm">Next Referral Case &rarr;</button>
+            ` : `
+              <button onclick="evaluateSection5()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm">Submit All Referral Cases &rarr;</button>
+            `}
+          </div>
+        </div>
+      `;
+    }
+
+    function answerReferralStep(stepIdx, optionIdx) {
+      if (state.referralUserChoices[state.currentReferralIndex][stepIdx] !== undefined) return; // already answered
+      state.referralUserChoices[state.currentReferralIndex][stepIdx] = optionIdx;
+      
+      const st = state.referralData[state.currentReferralIndex].steps[stepIdx];
+      playTone(optionIdx === st.correct ? 'success' : 'warning');
+      renderReferralCase();
+    }
+
+    function evaluateSection5() {
+      let totalSteps = 0;
+      let correctSteps = 0;
+
+      state.referralData.forEach((cData, cIdx) => {
+        cData.steps.forEach((st, sIdx) => {
+          totalSteps++;
+          if (state.referralUserChoices[cIdx][sIdx] === st.correct) {
+            correctSteps++;
+          }
+        });
+      });
+
+      const score = Math.round((correctSteps / totalSteps) * 100);
+      state.scores.sec5 = score;
+      updateHUD();
+      showToast(`Section 5 Referrals Score: ${score}/100`, score >= 80 ? 'success' : 'warning');
+      playTone(score >= 80 ? 'tada' : 'warning');
+    }
+  </script>
+
+  <script>
+    const STAGE_CONFIG = {
+      checkin: { title: 'Check-In & Demographics Window', icon: '📝', baselineWait: '12 min' },
+      waiting: { title: 'Reception Waiting Area', icon: '🪑', baselineWait: '20 min' },
+      vitals: { title: 'Clinical Vitals & Rooming (MA Intake)', icon: '🩺', baselineWait: '10 min' },
+      provider: { title: 'Physician Consultation & Exam', icon: '👨‍‍⚕️', baselineWait: '18 min' },
+      checkout: { title: 'Discharge & Scheduling Follow-Up', icon: '💳', baselineWait: '8 min' }
+    };
+
+    const LEAN_TACTICS = [
+      { id: 'tactic_kiosk', label: 'Electronic Self-Check-in Kiosk / Mobile Pre-Registration', timeSaved: 10, impact: 'Eliminates paper clipboards and insurance queue delays' },
+      { id: 'tactic_scrub', label: 'Advance Pre-Visit Chart Scrubbing (48h prior)', timeSaved: 8, impact: 'Identifies missing labs, referral orders, and authorizations before arrival' },
+      { id: 'tactic_chaperone', label: 'Parallel Room Turnover & MA Clinical Assisting', timeSaved: 7, impact: 'Rooms prepped and sanitized in 3 mins flat using color-coded room flags' },
+      { id: 'tactic_medrec', label: 'MA-Driven Pre-Encounter Medication Reconciliation', timeSaved: 6, impact: 'MA verifies meds and doses in EHR before physician enters the exam room' },
+      { id: 'tactic_checkout', label: 'In-Room Bedside Scheduling & Checkout', timeSaved: 5, impact: 'MA schedules next visit directly on exam room workstation; avoids lobby line' }
+    ];
+
+    function renderWorkflowSteps() {
+      const container = document.getElementById('workflow-steps-container');
+      if (!container) return;
+      container.innerHTML = '';
+
+      state.workflowOrder.forEach((stageKey, idx) => {
+        const stage = STAGE_CONFIG[stageKey];
+        const row = document.createElement('div');
+        row.className = "p-3 bg-white border border-slate-200 rounded-xl shadow-xs flex items-center justify-between gap-3 text-xs";
+        row.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="h-7 w-7 rounded-lg bg-teal-100 text-teal-800 font-extrabold flex items-center justify-center text-xs">
+              Step ${idx + 1}
+            </span>
+            <span class="text-base">${stage.icon}</span>
+            <div>
+              <span class="font-bold text-slate-800">${stage.title}</span>
+              <span class="text-[10px] text-slate-400 block">Baseline Duration: ${stage.baselineWait}</span>
+            </div>
+          </div>
+          <div class="flex items-center space-x-1">
+            <button onclick="moveWorkflowStep(${idx}, -1)" ${idx === 0 ? 'disabled class="opacity-30 p-1.5 rounded bg-slate-100"' : 'class="p-1.5 rounded bg-teal-50 text-teal-700 hover:bg-teal-100"'} title="Move earlier in flow">▲</button>
+            <button onclick="moveWorkflowStep(${idx}, 1)" ${idx === state.workflowOrder.length - 1 ? 'disabled class="opacity-30 p-1.5 rounded bg-slate-100"' : 'class="p-1.5 rounded bg-teal-50 text-teal-700 hover:bg-teal-100"'} title="Move later in flow">▼</button>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+
+      renderLeanTactics();
+    }
+
+    function moveWorkflowStep(idx, delta) {
+      playTone('click');
+      const target = idx + delta;
+      if (target < 0 || target >= state.workflowOrder.length) return;
+
+      const temp = state.workflowOrder[idx];
+      state.workflowOrder[idx] = state.workflowOrder[target];
+      state.workflowOrder[target] = temp;
+      renderWorkflowSteps();
+    }
+
+    function renderLeanTactics() {
+      const container = document.getElementById('lean-countermeasures');
+      if (!container) return;
+      container.innerHTML = '';
+
+      LEAN_TACTICS.forEach(item => {
+        const isSelected = state.selectedLeanTactics.has(item.id);
+        const card = document.createElement('div');
+        card.onclick = () => toggleLeanTactic(item.id);
+        card.className = `p-3 rounded-xl border text-xs cursor-pointer transition ${
+          isSelected ? 'bg-teal-50 border-teal-500 shadow-xs' : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+        }`;
+        card.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-800 text-[11px]">${item.label}</span>
+            <span class="h-4 w-4 rounded-md border flex items-center justify-center text-[10px] ${
+              isSelected ? 'bg-teal-600 border-teal-600 text-white font-bold' : 'border-slate-300 bg-white'
+            }">${isSelected ? '✓' : ''}</span>
+          </div>
+          <p class="text-[10px] text-slate-500 leading-snug">${item.impact}</p>
+          <span class="inline-block mt-2 font-semibold text-teal-700 text-[10px]">Saves ~${item.timeSaved} mins total transit time</span>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function toggleLeanTactic(id) {
+      playTone('click');
+      if (state.selectedLeanTactics.has(id)) {
+        state.selectedLeanTactics.delete(id);
+      } else {
+        state.selectedLeanTactics.add(id);
+      }
+      renderLeanTactics();
+    }
+
+    function resetWorkflowOrder() {
+      state.workflowOrder = ['checkin', 'waiting', 'vitals', 'provider', 'checkout'];
+      state.selectedLeanTactics.clear();
+      renderWorkflowSteps();
+      showToast("Default linear workflow restored.", "info");
+    }
+
+    function auditPatientFlow() {
+      let baselineTotalTime = 68; // 68 minutes in clinic on average
+      let timeSaved = 0;
+      let score = 70;
+      const feedbackNotes = [];
+
+      state.selectedLeanTactics.forEach(id => {
+        const t = LEAN_TACTICS.find(x => x.id === id);
+        if (t) {
+          timeSaved += t.timeSaved;
+          score += 6;
+        }
+      });
+
+      const newCycleTime = Math.max(28, baselineTotalTime - timeSaved);
+
+      // Check sequence validity (Check-in and vitals must precede provider)
+      const providerIdx = state.workflowOrder.indexOf('provider');
+      const vitalsIdx = state.workflowOrder.indexOf('vitals');
+      const checkoutIdx = state.workflowOrder.indexOf('checkout');
+
+      if (vitalsIdx > providerIdx) {
+        score -= 25;
+        feedbackNotes.push("❌ Operational Hazard: Vitals placed AFTER physician encounter. Physician cannot safely prescribe or evaluate without current blood pressure, heart rate, and temperature.");
+      } else {
+        feedbackNotes.push("✓ Accurate Clinical Sequence: Vitals and rooming precede physician encounter.");
+      }
+
+      if (checkoutIdx < providerIdx) {
+        score -= 20;
+        feedbackNotes.push("❌ Premature Checkout: Patient cannot complete discharge/checkout before physician issues orders and follow-up plan.");
+      }
+
+      score = Math.min(100, Math.max(0, score));
+      state.scores.sec6 = score;
+      state.efficiencyRate = Math.min(100, state.efficiencyRate + Math.round(timeSaved / 3));
+      updateHUD();
+
+      const fb = document.getElementById('sec6-feedback');
+      fb.className = `mt-6 p-5 rounded-xl border ${score >= 80 ? 'bg-teal-50 border-teal-300 text-teal-950' : 'bg-amber-50 border-amber-300 text-amber-950'}`;
+      fb.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-bold text-base">Lean Workflow Optimization Audit: ${score}/100 Pts</h4>
+          <span class="px-3 py-1 rounded-full text-xs font-bold bg-teal-200 text-teal-900">
+            Average Visit Cycle Time: ${newCycleTime} Mins (Saved ${timeSaved} mins)
+          </span>
+        </div>
+        <div class="space-y-1.5 text-xs mb-3">
+          ${feedbackNotes.map(n => `<p>${n}</p>`).join('')}
+        </div>
+        <div class="p-3 bg-white rounded-lg border border-teal-200 text-xs text-slate-700">
+          <strong>Lean Healthcare Principle:</strong> By converting serial bottlenecks into parallel team-based processes (chart scrubbing + electronic pre-registration), total clinic dwell time drops by over 45%, directly preventing lobby crowding and patient dissatisfaction.
+        </div>
+      `;
+      fb.classList.remove('hidden');
+      playTone(score >= 80 ? 'success' : 'warning');
+      showToast(`Section 6 Score: ${score}/100`, score >= 80 ? 'success' : 'warning');
+    }
+  </script>
+
+  <script>
+    const CAPSTONE_EVENTS = [
+      {
+        time: "08:15 AM",
+        type: "Urgent Arrival",
+        title: "Walk-in Diabetic with Hypoglycemia Symptoms",
+        desc: "A known Type 1 Diabetic arrives unannounced at the front counter sweating profusely, tremulous, and visibly confused.",
+        actions: [
+          { text: "Tell them walk-ins are seen only after 11:30 AM and to wait in the back row.", score: 0, feedback: "Life-threatening danger: Severe hypoglycemia can lead to coma within minutes." },
+          { text: "Immediately escort patient to triage room, alert the MA/provider, obtain rapid point-of-care fingerstick blood glucose, and administer oral fast-acting glucose/juice per clinic standing orders.", score: 20, feedback: "Exemplary Medical Assistant triage. Rapid glucose administration resolves neuroglycopenia instantly." },
+          { text: "Call an ambulance and leave the patient unattended in the vestibule.", score: 5, feedback: "Leaving an unstable hypoglycemic patient unattended risks unobserved loss of consciousness and airway obstruction." }
+        ]
+      },
+      {
+        time: "09:30 AM",
+        type: "Cancellation & Waitlist",
+        title: "Mid-Morning 45-Min Cancellation",
+        desc: "A 10:00 AM new patient calls to cancel due to vehicle breakdown. Dr. Smith will have a 45-minute blank window.",
+        actions: [
+          { text: "Access the electronic Fast-Pass waitlist and offer the 10:00 AM slot to an established hypertension patient on callback status.", score: 20, feedback: "Perfect practice management. Eliminates idle provider downtime and advances patient care." },
+          { text: "Double-book the 11:00 AM slot just to make up for lost time.", score: 0, feedback: "Senseless double-booking creates an unnecessary late-morning bottleneck." },
+          { text: "Close the clinic phone lines for the morning.", score: 0, feedback: "Unacceptable administrative practice." }
+        ]
+      },
+      {
+        time: "11:00 AM",
+        type: "Late Arrival Cascade",
+        title: "15-Minute Late Arrival During Wave",
+        desc: "Mr. Campbell arrives 20 minutes late for his 10:45 AM follow-up during a packed wave slot. Dr. Smith is already rooming the 11:00 AM patient.",
+        actions: [
+          { text: "Turn Mr. Campbell away immediately and discharge him from the practice.", score: 0, feedback: "Draconian response that violates patient-centered retention." },
+          { text: "Assess appointment reason (routine BP check); offer to obtain vitals and place him in the 11:45 AM pre-lunch buffer opening or provide telehealth option.", score: 20, feedback: "Flexible administrative coordination that preserves clinic flow while accommodating patient needs." },
+          { text: "Interrupt Dr. Smith and demand he see Mr. Campbell first.", score: 0, feedback: "Rude to provider and punishes the on-time 11:00 AM patient." }
+        ]
+      },
+      {
+        time: "01:30 PM",
+        type: "Referral Dilemma",
+        title: "STAT Oncology Referral Request",
+        desc: "Dr. Smith diagnoses a suspicious pigmented skin lesion with ulceration and requests a STAT Dermatology / Surgical Oncology referral.",
+        actions: [
+          { text: "Put the paper referral in the outgoing postal tray to be mailed next Monday.", score: 0, feedback: "Unacceptable clinical delay for potential malignant melanoma." },
+          { text: "Mark referral as URGENT/STAT, attach biopsy/dermatology photos, call specialist coordinator directly for peer-to-peer fast-track, and confirm patient appointment within 48 hours.", score: 20, feedback: "Gold standard administrative referral coordination. Prevents life-threatening referral leakage." },
+          { text: "Hand the requisition to the patient and tell them to call random dermatologists from the phone book.", score: 5, feedback: "Abdicates administrative coordination duty for high-risk clinical finding." }
+        ]
+      },
+      {
+        time: "02:45 PM",
+        type: "No-Show Management",
+        title: "2:45 PM Patient Fails to Arrive",
+        desc: "The 2:45 PM patient has not arrived and does not answer initial check-in text. It is now 3:00 PM.",
+        actions: [
+          { text: "Document No-Show in EHR, initiate contact protocol, review chart for critical medications, and utilize open window for chart scrubbing and lab reviews.", score: 20, feedback: "Complies with legal documentation standards while maintaining staff productivity." },
+          { text: "Do not document anything and assume the patient died.", score: 0, feedback: "Violates legal medical record documentation obligations." },
+          { text: "Post the patient's name on public social media to shame them.", score: 0, feedback: "Severe HIPAA violation resulting in immediate termination and federal fines." }
+        ]
+      },
+      {
+        time: "04:15 PM",
+        type: "End-of-Day Add-On",
+        title: "Urgent Pediatric Ear Pain Call",
+        desc: "A mother calls in tears: her 4-year-old child has severe right ear pain, crying inconsolably, fever 101.8°F. Office closes at 5:00 PM.",
+        actions: [
+          { text: "Tell her the office closes at 5:00 PM sharp and hang up.", score: 0, feedback: "Callous and fails pediatric clinical triage standards." },
+          { text: "Consult Dr. Smith, utilize the designated 4:30 PM same-day sick buffer slot, instruct mother on arrival prep, or coordinate pediatric urgent care handoff if en route time exceeds hours.", score: 20, feedback: "Compassionate, safe triage that properly utilizes built-in sick buffer slots." },
+          { text: "Diagnose acute otitis media over the phone and prescribe antibiotics without provider review.", score: 0, feedback: "Illegal practice of medicine by an MA." }
+        ]
+      }
+    ];
+
+    function renderCapstoneStage() {
+      const container = document.getElementById('capstone-stage-container');
+      if (!container) return;
+
+      const ev = CAPSTONE_EVENTS[state.capstoneIndex];
+      document.getElementById('sim-clock').innerText = ev.time;
+      document.getElementById('capstone-event-count').innerText = `${state.capstoneIndex + 1} / 6`;
+
+      container.innerHTML = `
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+              Clock: ${ev.time} &bull; ${ev.type}
+            </span>
+            <span class="text-xs font-semibold text-slate-500">Live Clinical Challenge</span>
+          </div>
+
+          <h3 class="text-base font-bold text-slate-900 mb-2">${ev.title}</h3>
+          <p class="text-xs text-slate-700 bg-white p-4 rounded-lg border border-slate-200 mb-5 leading-relaxed">
+            ${ev.desc}
+          </p>
+
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Your Clinical Administrative Action:</h4>
+          <div class="space-y-3" id="capstone-action-list">
+            ${ev.actions.map((act, aIdx) => `
+              <div onclick="selectCapstoneAction(${aIdx})" id="cap-act-${aIdx}" class="p-3.5 rounded-xl border border-slate-200 bg-white hover:border-amber-400 hover:bg-amber-50/40 cursor-pointer text-xs transition flex items-start gap-3">
+                <span class="h-5 w-5 rounded-full border border-slate-400 flex items-center justify-center font-bold text-[10px] text-slate-600 shrink-0 mt-0.5">${String.fromCharCode(65 + aIdx)}</span>
+                <span class="text-slate-800 leading-normal">${act.text}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div id="capstone-feedback-box" class="hidden mt-5 p-4 rounded-xl text-xs leading-relaxed"></div>
+
+          <div class="mt-5 pt-4 border-t border-slate-200 flex justify-between items-center">
+            <span class="text-xs text-slate-500">Capstone Day Score: <strong class="text-amber-700 font-bold" id="capstone-running-score">${state.capstoneScore} / 120</strong></span>
+            <button id="capstone-next-btn" onclick="nextCapstoneStage()" class="hidden px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition">
+              ${state.capstoneIndex === CAPSTONE_EVENTS.length - 1 ? 'Finish Virtual Clinic Day' : 'Advance Simulation Clock &rarr;'}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function selectCapstoneAction(actIdx) {
+      const ev = CAPSTONE_EVENTS[state.capstoneIndex];
+      const act = ev.actions[actIdx];
+      const fbBox = document.getElementById('capstone-feedback-box');
+      const nextBtn = document.getElementById('capstone-next-btn');
+
+      // Disable further clicks
+      document.querySelectorAll('#capstone-action-list > div').forEach((div, i) => {
+        div.onclick = null;
+        if (ev.actions[i].score > 0) {
+          div.classList.add('bg-emerald-50', 'border-emerald-400', 'text-emerald-950');
+        } else if (i === actIdx) {
+          div.classList.add('bg-rose-50', 'border-rose-400', 'text-rose-950');
+        }
+      });
+
+      state.capstoneScore += act.score;
+      if (act.score >= 20) {
+        state.satisfactionRate += 2;
+        playTone('success');
+        fbBox.className = "mt-5 p-4 rounded-xl text-xs leading-relaxed bg-emerald-50 border border-emerald-300 text-emerald-900";
+        fbBox.innerHTML = `<strong>✓ Excellent Response (+${act.score} pts):</strong> ${act.feedback}`;
+      } else {
+        state.efficiencyRate -= 4;
+        state.satisfactionRate -= 4;
+        playTone('warning');
+        fbBox.className = "mt-5 p-4 rounded-xl text-xs leading-relaxed bg-rose-50 border border-rose-300 text-rose-900";
+        fbBox.innerHTML = `<strong>✗ Suboptimal Clinical Protocol (${act.score} pts):</strong> ${act.feedback}`;
+      }
+
+      fbBox.classList.remove('hidden');
+      nextBtn.classList.remove('hidden');
+      document.getElementById('capstone-running-score').innerText = `${state.capstoneScore} / 120`;
+      updateHUD();
+    }
+
+    function nextCapstoneStage() {
+      if (state.capstoneIndex < CAPSTONE_EVENTS.length - 1) {
+        state.capstoneIndex++;
+        renderCapstoneStage();
+      } else {
+        // Capstone Complete
+        const normalized = Math.round((state.capstoneScore / 120) * 100);
+        state.scores.capstone = normalized;
+        updateHUD();
+        playTone('tada');
+
+        const container = document.getElementById('capstone-stage-container');
+        container.innerHTML = `
+          <div class="p-6 bg-amber-50 border border-amber-300 rounded-2xl text-center">
+            <h3 class="text-xl font-bold text-amber-950">Virtual Clinic Day Successfully Concluded!</h3>
+            <p class="text-sm text-amber-900 mt-2">
+              Dr. Smith's clinic has closed at 5:00 PM. All 6 unexpected clinical and administrative events were triaged.
+            </p>
+            <div class="mt-3 text-xs text-amber-800">
+              Capstone Score: <strong>${normalized}/100</strong> &bull; Final Patient Satisfaction: <strong>${state.satisfactionRate}%</strong> &bull; Practice Efficiency: <strong>${state.efficiencyRate}%</strong>
+            </div>
+            <div class="mt-5 flex justify-center gap-3">
+              <button onclick="switchTab('report')" class="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold shadow-md">
+                View Final Competency Transcript & Lab Submission &rarr;
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    }
+  </script>
+
+  <script>
+    function renderFinalTranscript() {
+      document.getElementById('rep-s1-score').innerText = `${state.scores.sec1} / 100`;
+      document.getElementById('rep-s2-score').innerText = `${state.scores.sec2} / 100`;
+      document.getElementById('rep-s3-score').innerText = `${state.scores.sec3} / 100`;
+      document.getElementById('rep-s4-score').innerText = `${state.scores.sec4} / 100`;
+      document.getElementById('rep-s5-score').innerText = `${state.scores.sec5} / 100`;
+      document.getElementById('rep-s6-score').innerText = `${state.scores.sec6} / 100`;
+      document.getElementById('rep-cap-score').innerText = `${state.scores.capstone} / 100`;
+
+      const sum = Object.values(state.scores).reduce((a, b) => a + b, 0);
+      const totalPossible = 700;
+      const pct = Math.round((sum / totalPossible) * 100);
+      document.getElementById('rep-total-score').innerText = `${pct}% (${sum}/${totalPossible})`;
+    }
+
+    function generatePrintableContent() {
+      const q1 = document.getElementById('ref-q1')?.value || "No response entered.";
+      const q2 = document.getElementById('ref-q2')?.value || "No response entered.";
+      const q3 = document.getElementById('ref-q3')?.value || "No response entered.";
+      const q4 = document.getElementById('ref-q4')?.value || "No response entered.";
+      const sum = Object.values(state.scores).reduce((a, b) => a + b, 0);
+      const pct = Math.round((sum / 700) * 100);
+
+      return `
+        <div style="font-family: Arial, sans-serif; padding: 25px; color: #1e293b;">
+          <div style="border-bottom: 2px solid #0f766e; padding-bottom: 12px; margin-bottom: 20px;">
+            <h1 style="color: #0f766e; margin: 0; font-size: 20px;">MDCA 1421 Administrative Procedures</h1>
+            <h2 style="color: #334155; margin: 4px 0 0 0; font-size: 16px;">Medical Office Scheduling & Patient Flow Challenge — Student Performance Report</h2>
+            <p style="font-size: 11px; color: #64748b; margin: 4px 0 0 0;">Timestamp: ${new Date().toLocaleString()} | Verified Lab Activity Output</p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px;">
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center;">
+              <strong style="font-size: 10px; color: #64748b;">Schedule Matrix</strong>
+              <div style="font-size: 14px; font-weight: bold; color: #0f766e;">${state.scores.sec1}/100</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center;">
+              <strong style="font-size: 10px; color: #64748b;">Conflicts (10)</strong>
+              <div style="font-size: 14px; font-weight: bold; color: #0284c7;">${state.scores.sec2}/100</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center;">
+              <strong style="font-size: 10px; color: #64748b;">Triage Priority</strong>
+              <div style="font-size: 14px; font-weight: bold; color: #7e22ce;">${state.scores.sec3}/100</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center;">
+              <strong style="font-size: 10px; color: #64748b;">No-Show QI Plan</strong>
+              <div style="font-size: 14px; font-weight: bold; color: #d97706;">${state.scores.sec4}/100</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center;">
+              <strong style="font-size: 10px; color: #64748b;">Referrals (3)</strong>
+              <div style="font-size: 14px; font-weight: bold; color: #059669;">${state.scores.sec5}/100</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center;">
+              <strong style="font-size: 10px; color: #64748b;">Lean Flow Design</strong>
+              <div style="font-size: 14px; font-weight: bold; color: #4338ca;">${state.scores.sec6}/100</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px; text-align: center;">
+              <strong style="font-size: 10px; color: #64748b;">Virtual Clinic Day</strong>
+              <div style="font-size: 14px; font-weight: bold; color: #e11d48;">${state.scores.capstone}/100</div>
+            </div>
+            <div style="background: #0f766e; color: white; border: 1px solid #0f766e; padding: 10px; border-radius: 6px; text-align: center;">
+              <strong style="font-size: 10px; color: #99f6e4;">Total Lab Grade</strong>
+              <div style="font-size: 14px; font-weight: bold; color: #ffffff;">${pct}% (${sum}/700)</div>
+            </div>
+          </div>
+
+          <h3 style="font-size: 13px; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 20px;">Student Written Synthesis & Reflection Responses</h3>
+          
+          <div style="margin-top: 10px; font-size: 11px;">
+            <p><strong>1. Most Difficult Scheduling Decision:</strong><br><span style="color: #334155;">${q1}</span></p>
+            <p><strong>2. Balancing Patient Needs vs Provider Availability:</strong><br><span style="color: #334155;">${q2}</span></p>
+            <p><strong>3. Scheduling Impact on Patient Satisfaction:</strong><br><span style="color: #334155;">${q3}</span></p>
+            <p><strong>4. Ambulatory Office Protocol Adjustments:</strong><br><span style="color: #334155;">${q4}</span></p>
+          </div>
+
+          <div style="margin-top: 25px; padding: 10px; background: #f1f5f9; border-radius: 6px; font-size: 10px; color: #64748b;">
+            I certify that the simulation decisions and analytical reflections above represent my independent coursework for MDCA 1421 Administrative Procedures.
+          </div>
+        </div>
+      `;
+    }
+
+    function printSimulationReport() {
+      const content = generatePrintableContent();
+      const printWindow = window.open('', '_blank', 'width=850,height=900');
+      if (!printWindow) {
+        showToast("Popup was blocked by your browser. Please allow popups to print report.", "error");
+        return;
+      }
+      printWindow.document.write(`
+        <html>
+          <head><title>MDCA 1421 Simulation Performance Report</title></head>
+          <body onload="window.print(); window.close();">${content}</body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+
+    function copyReportClipboard() {
+      const q1 = document.getElementById('ref-q1')?.value || "N/A";
+      const q2 = document.getElementById('ref-q2')?.value || "N/A";
+      const q3 = document.getElementById('ref-q3')?.value || "N/A";
+      const q4 = document.getElementById('ref-q4')?.value || "N/A";
+      const sum = Object.values(state.scores).reduce((a, b) => a + b, 0);
+
+      const text = `
+=== MDCA 1421 ADMINISTRATIVE PROCEDURES: MEDICAL OFFICE SCHEDULING TRANSCRIPT ===
+Generated: ${new Date().toLocaleString()}
+Overall Score: ${sum} / 700 (${Math.round((sum/700)*100)}%)
+Final Efficiency Rating: ${state.efficiencyRate}% | Patient Satisfaction: ${state.satisfactionRate}%
+
+COMPETENCY SCORES:
+- Section 1 (Provider Schedule Matrix): ${state.scores.sec1} / 100
+- Section 2 (Scheduling Conflicts - 10 Scenarios): ${state.scores.sec2} / 100
+- Section 3 (Triage Prioritization): ${state.scores.sec3} / 100
+- Section 4 (No-Show Reduction Strategy): ${state.scores.sec4} / 100
+- Section 5 (Referral Coordination): ${state.scores.sec5} / 100
+- Section 6 (Patient Flow Optimization): ${state.scores.sec6} / 100
+- Final Capstone (Virtual Clinic Day): ${state.scores.capstone} / 100
+
+STUDENT REFLECTIONS:
+1. Difficult Decision: ${q1}
+2. Patient Needs vs Provider Availability: ${q2}
+3. Patient Satisfaction Impact: ${q3}
+4. Future Office Practice: ${q4}
+================================================================================
+      `.trim();
+
+      const tempTextArea = document.createElement('textarea');
+      tempTextArea.value = text;
+      document.body.appendChild(tempTextArea);
+      tempTextArea.select();
+      try {
+        document.execCommand('copy');
+        showToast("Full simulation transcript copied to clipboard!", "success");
+        playTone('success');
+      } catch (err) {
+        showToast("Could not copy automatically. Please use the Print option.", "warning");
+      }
+      document.body.removeChild(tempTextArea);
+    }
+
+    /* Initialize Simulation on Page Load */
+    window.onload = function() {
+      renderScheduleGrid();
+      renderConflictScenario();
+      renderPrioritizationList();
+      renderNoShowOptions();
+      loadReferralCase(0);
+      renderWorkflowSteps();
+      renderCapstoneStage();
+      updateHUD();
+    };
+  </script>
+</body>
+</html>
